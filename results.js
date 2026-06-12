@@ -5,7 +5,7 @@
 
 const RESULTS_CONFIG = window.APP_CONFIG || {};
 const API_ENDPOINT_RESULTS = RESULTS_CONFIG.API_ENDPOINT || '';
-const POINTS_EXACT_SCORE_RESULTS = 3;
+const POINTS_PER_PARTICIPANT_RESULTS = 100;
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -14,13 +14,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     const matches = Array.isArray(matchesData.matches) ? matchesData.matches : matchesData;
 
     recalculateStandingsResults(normalized);
-    renderParticipantsSummary(normalized.participants || []);
+    renderParticipantsSummary(normalized.participants || [], normalized);
     renderMatchesSummary(normalized.results || {}, matches || []);
   } catch (error) {
     console.error('Error al cargar datos:', error);
     document.getElementById('participants-summary').textContent = 'No se pudieron cargar los datos.';
   }
 });
+
+function toNumberResults(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function formatPointsResults(value) {
+  const number = toNumberResults(value, 0);
+  if (Number.isInteger(number)) return String(number);
+  return number.toFixed(2).replace(/\.00$/, '').replace(/0$/, '');
+}
 
 async function loadBetData() {
   if (API_ENDPOINT_RESULTS) {
@@ -66,15 +77,16 @@ function normalizeBetDataResults(data) {
       ? source.participants
           .map((p) => ({
             name: String(p.name || '').trim(),
-            correct: Number.isFinite(Number(p.correct)) ? Number(p.correct) : 0,
-            points: Number.isFinite(Number(p.points))
-              ? Number(p.points)
-              : (Number.isFinite(Number(p.correct)) ? Number(p.correct) * POINTS_EXACT_SCORE_RESULTS : 0)
+            correct: toNumberResults(p.correct, 0),
+            points: toNumberResults(p.points, 0)
           }))
           .filter((p) => p.name)
       : [],
     predictions: source.predictions && typeof source.predictions === 'object' ? source.predictions : {},
-    results: source.results && typeof source.results === 'object' ? source.results : {}
+    results: source.results && typeof source.results === 'object' ? source.results : {},
+    accumulatedPool: toNumberResults(source.accumulatedPool ?? source.accumulatedPot, 0),
+    accumulatedPot: toNumberResults(source.accumulatedPot ?? source.accumulatedPool, 0),
+    settings: source.settings && typeof source.settings === 'object' ? source.settings : {}
   };
 }
 
@@ -84,30 +96,73 @@ function recalculateStandingsResults(data) {
     participant.points = 0;
   });
 
-  Object.keys(data.results || {}).forEach((idx) => {
+  let runningAccumulated = 0;
+
+  const resultKeys = Object.keys(data.results || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key))
+    .sort((a, b) => a - b);
+
+  resultKeys.forEach((idx) => {
     const result = data.results[idx];
+    if (!result) return;
+
+    const basePool = toNumberResults(result.basePool, data.participants.length * POINTS_PER_PARTICIPANT_RESULTS);
+    const previousAccumulated = runningAccumulated;
+    const totalPool = previousAccumulated + basePool;
     const winners = [];
 
     data.participants.forEach((participant) => {
       const prediction = data.predictions[idx] ? data.predictions[idx][participant.name] : null;
       if (prediction && prediction.score1 === result.score1 && prediction.score2 === result.score2) {
         participant.correct += 1;
-        participant.points += POINTS_EXACT_SCORE_RESULTS;
         winners.push(participant.name);
       }
     });
 
+    let pointsPerWinner = 0;
+    if (winners.length > 0) {
+      pointsPerWinner = totalPool / winners.length;
+      data.participants.forEach((participant) => {
+        if (winners.includes(participant.name)) {
+          participant.points += pointsPerWinner;
+        }
+      });
+      runningAccumulated = 0;
+    } else {
+      runningAccumulated = totalPool;
+    }
+
+    result.participantCount = toNumberResults(result.participantCount, data.participants.length);
+    result.pointsPerParticipant = POINTS_PER_PARTICIPANT_RESULTS;
+    result.basePool = basePool;
+    result.previousAccumulated = previousAccumulated;
+    result.totalPool = totalPool;
     result.winners = winners;
-    result.pointsPerWinner = POINTS_EXACT_SCORE_RESULTS;
+    result.pointsPerWinner = pointsPerWinner;
+    result.accumulatedAfter = runningAccumulated;
   });
+
+  data.accumulatedPool = runningAccumulated;
+  data.accumulatedPot = runningAccumulated;
 }
 
-function renderParticipantsSummary(participants) {
+function renderParticipantsSummary(participants, data) {
   const container = document.getElementById('participants-summary');
   container.innerHTML = '';
 
+  const summary = document.createElement('div');
+  summary.className = 'pool-summary';
+  summary.innerHTML = `
+    <strong>Regla:</strong> ${POINTS_PER_PARTICIPANT_RESULTS} puntos virtuales por participante en cada partido.<br>
+    <strong>Acumulado actual:</strong> ${formatPointsResults(data.accumulatedPool || 0)} puntos.
+  `;
+  container.appendChild(summary);
+
   if (!participants || participants.length === 0) {
-    container.textContent = 'No hay participantes registrados.';
+    const empty = document.createElement('p');
+    empty.textContent = 'No hay participantes registrados.';
+    container.appendChild(empty);
     return;
   }
 
@@ -115,7 +170,7 @@ function renderParticipantsSummary(participants) {
   const thead = document.createElement('thead');
   const hdrRow = document.createElement('tr');
 
-  ['Participante', 'Aciertos', 'Puntos'].forEach((h) => {
+  ['Participante', 'Aciertos', 'Puntos ganados'].forEach((h) => {
     const th = document.createElement('th');
     th.textContent = h;
     hdrRow.appendChild(th);
@@ -138,7 +193,7 @@ function renderParticipantsSummary(participants) {
       const tdCorrect = document.createElement('td');
       tdCorrect.textContent = p.correct;
       const tdPoints = document.createElement('td');
-      tdPoints.textContent = p.points;
+      tdPoints.textContent = formatPointsResults(p.points);
       tr.appendChild(tdName);
       tr.appendChild(tdCorrect);
       tr.appendChild(tdPoints);
@@ -163,14 +218,7 @@ function renderMatchesSummary(results, matches) {
     return;
   }
 
-  resArray.sort((a, b) => {
-    const matchA = matches[a.idx];
-    const matchB = matches[b.idx];
-    if (!matchA || !matchB) return 0;
-    const dateA = new Date(`${matchA.date}T${matchA.time ? matchA.time.split(' ')[0] : '00:00'}`);
-    const dateB = new Date(`${matchB.date}T${matchB.time ? matchB.time.split(' ')[0] : '00:00'}`);
-    return dateA - dateB;
-  });
+  resArray.sort((a, b) => a.idx - b.idx);
 
   resArray.forEach(({ idx, result }) => {
     const match = matches[idx];
@@ -186,20 +234,28 @@ function renderMatchesSummary(results, matches) {
     const score = document.createElement('p');
     score.textContent = `Marcador final: ${result.score1} - ${result.score2}`;
 
-    const pointsInfo = document.createElement('p');
-    pointsInfo.textContent = `Puntos por marcador exacto: ${result.pointsPerWinner || POINTS_EXACT_SCORE_RESULTS}`;
+    const baseInfo = document.createElement('p');
+    baseInfo.textContent = `Bolsa base: ${formatPointsResults(result.basePool || 0)} puntos.`;
+
+    const previousInfo = document.createElement('p');
+    previousInfo.textContent = `Acumulado anterior: ${formatPointsResults(result.previousAccumulated || 0)} puntos.`;
+
+    const totalInfo = document.createElement('p');
+    totalInfo.textContent = `Bolsa total: ${formatPointsResults(result.totalPool || 0)} puntos.`;
 
     const winnersInfo = document.createElement('p');
     if (result.winners && result.winners.length > 0) {
-      winnersInfo.textContent = `Acertaron (${result.winners.length}): ${result.winners.join(', ')}`;
+      winnersInfo.textContent = `Acertaron (${result.winners.length}): ${result.winners.join(', ')}. Cada uno gana ${formatPointsResults(result.pointsPerWinner)} puntos.`;
     } else {
-      winnersInfo.textContent = 'Nadie acertó el marcador exacto.';
+      winnersInfo.textContent = `Nadie acertó. Se acumulan ${formatPointsResults(result.accumulatedAfter || 0)} puntos.`;
     }
 
     card.appendChild(title);
     if (info.textContent) card.appendChild(info);
     card.appendChild(score);
-    card.appendChild(pointsInfo);
+    card.appendChild(baseInfo);
+    card.appendChild(previousInfo);
+    card.appendChild(totalInfo);
     card.appendChild(winnersInfo);
     container.appendChild(card);
   });

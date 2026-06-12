@@ -2,5 +2,9 @@
   "participants": [],
   "predictions": {},
   "results": {},
-  "accumulatedPot": 0
+  "accumulatedPool": 0,
+  "accumulatedPot": 0,
+  "settings": {
+    "pointsPerParticipant": 100
+  }
 }

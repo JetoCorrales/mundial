@@ -9,7 +9,7 @@
 <body>
   <header>
     <h1>Quiniela del Mundial 2026</h1>
-    <p>Administra pronósticos entre amigos para los partidos del Mundial 2026. Cada marcador exacto suma puntos y la tabla de posiciones se actualiza automáticamente desde Cloudflare.</p>
+    <p>Administra pronósticos entre amigos para los partidos del Mundial 2026. Cada participante aporta 100 puntos virtuales por partido. Si nadie acierta el marcador exacto, la bolsa se acumula; si uno o varios aciertan, se reparte entre ellos.</p>
   </header>
   <main>
     <section id="participants-section">
@@ -21,6 +21,12 @@
       <div id="participants-list">
         <!-- Lista dinámica de participantes -->
       </div>
+    </section>
+
+    <section id="admin-section" class="admin-section">
+      <h2>Administración de datos</h2>
+      <p>Usa esta opción solo si deseas iniciar la quiniela desde cero. Se eliminarán participantes, pronósticos, resultados y acumulado.</p>
+      <button id="clear-data-button" class="danger-button" type="button">Limpiar todos los datos</button>
     </section>
 
     <section id="matches-section">
@@ -62,7 +68,7 @@
   </main>
 
   <footer>
-    <p>Proyecto de quiniela amistosa del Mundial 2026. Los datos se guardan en Cloudflare Worker; el navegador solo conserva una copia local de respaldo.</p>
+    <p>Proyecto de quiniela amistosa del Mundial 2026. Los datos se guardan en Cloudflare Worker; el navegador solo conserva una copia local de respaldo. Sistema de puntos virtuales, no dinero real.</p>
   </footer>
 
   <!-- Cargamos los datos de los partidos de forma estática. Este script define la

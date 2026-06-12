@@ -1,10 +1,20 @@
-# Cambios realizados
+# Instrucciones para subir la quiniela con bolsa acumulada
 
-Se corrigió la conexión entre GitHub Pages y Cloudflare Worker.
+## 1. GitHub Pages
 
-## Archivo clave
+1. Descomprime este ZIP.
+2. Sube todos los archivos al repositorio `mundial`.
+3. Verifica que se suban estos archivos principales:
+   - `index.html`
+   - `results.html`
+   - `script.js`
+   - `results.js`
+   - `style.css`
+   - `config.js`
+   - `matches.json`
+   - `matches_data.js`
 
-Edita `config.js` solo si necesitas cambiar el Worker o agregar token:
+En `config.js` debe estar configurado:
 
 ```js
 window.APP_CONFIG = {
@@ -13,40 +23,46 @@ window.APP_CONFIG = {
 };
 ```
 
-## Qué cambió
+Después de subir los archivos, abre:
 
-- `script.js` ahora carga primero desde Cloudflare Worker.
-- `localStorage` ya no sobrescribe los datos de Cloudflare.
-- `localStorage` queda solo como respaldo/cache.
-- `results.js` también lee desde Cloudflare Worker.
-- Se agregó una barra de estado para saber si cargó/guardó en Cloudflare.
-- Se cambió la lógica a quiniela de puntos: marcador exacto = 3 puntos.
+```txt
+https://jetocorrales.github.io/mundial/
+```
 
-## Archivos que debes subir a GitHub Pages
+Presiona `Ctrl + F5` para evitar caché.
 
-Sube todos estos archivos reemplazando los anteriores:
+## 2. Cloudflare Worker
 
-- `index.html`
-- `results.html`
-- `script.js`
-- `results.js`
-- `style.css`
-- `config.js`
-- `matches.json`
-- `matches_data.js`
-- `bet_data.json`
+El Worker debe tener un KV namespace enlazado con binding exacto:
 
-## Prueba después de subir
+```txt
+BETS_DATA
+```
 
-1. Abre la página de GitHub Pages.
-2. Presiona Ctrl + F5.
-3. Abre F12 > Network / Red.
-4. Agrega un participante.
-5. Debe aparecer una solicitud POST hacia:
-   `https://workermundilista.jeison-corrales-garcia.workers.dev/api/betData`
-6. Luego abre esa URL del Worker y verifica que el participante aparezca en el JSON.
+El archivo `cloudflare_worker_quiniela_puntos.js` contiene el código del Worker.
 
-## Nota importante sobre token
+## 3. Regla de puntos
 
-Si tu Worker exige `Authorization: Bearer ...`, debes poner el token en `config.js`.
-Pero recuerda: en GitHub Pages cualquier persona puede ver ese token porque el frontend es público.
+- Cada participante aporta 100 puntos virtuales por partido.
+- Si nadie acierta el marcador exacto, la bolsa se acumula.
+- Si una o varias personas aciertan, la bolsa acumulada se reparte entre ellas.
+- Al repartirse la bolsa, el acumulado vuelve a 0.
+
+## 4. Botón limpiar datos
+
+La página principal incluye un botón:
+
+```txt
+Limpiar todos los datos
+```
+
+Ese botón borra:
+
+- Participantes
+- Pronósticos
+- Resultados
+- Acumulado
+- Respaldo local del navegador
+- Datos guardados en Cloudflare
+
+El botón pide doble confirmación antes de limpiar.

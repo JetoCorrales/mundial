@@ -1,29 +1,34 @@
 /*
  * Administración de quiniela/pronósticos del Mundial 2026.
  *
- * Cambios principales:
+ * Lógica actual:
+ *  - Cada participante suma 100 puntos virtuales a la bolsa de cada partido.
+ *  - Si nadie acierta el marcador exacto, la bolsa se acumula para el siguiente partido.
+ *  - Si una o varias personas aciertan, se reparte toda la bolsa acumulada entre ellas.
  *  - Cloudflare Worker es la fuente principal de datos.
- *  - localStorage solo se usa como respaldo/cache, no para sobrescribir la API.
- *  - Se eliminan cálculos de dinero y se usa un sistema de puntos.
+ *  - localStorage solo se usa como respaldo/cache para no perder lo digitado.
  */
 
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_ENDPOINT = APP_CONFIG.API_ENDPOINT || '';
 const API_TOKEN = APP_CONFIG.API_TOKEN || '';
-const POINTS_EXACT_SCORE = 3;
+const POINTS_PER_PARTICIPANT = 100;
 
 const DEFAULT_DATA = {
   participants: [],
   predictions: {},
   results: {},
-  accumulatedPot: 0 // campo heredado; ya no se usa para dinero
+  accumulatedPool: 0,
+  accumulatedPot: 0,
+  settings: {
+    pointsPerParticipant: POINTS_PER_PARTICIPANT
+  }
 };
 
 let betData = { ...DEFAULT_DATA };
 let matches = [];
 let apiAvailable = false;
 
-// Cargar datos iniciales al arrancar la página
 window.addEventListener('DOMContentLoaded', async () => {
   const addForm = document.getElementById('add-participant-form');
   addForm.addEventListener('submit', async (e) => {
@@ -36,9 +41,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  const clearDataButton = document.getElementById('clear-data-button');
+  if (clearDataButton) {
+    clearDataButton.addEventListener('click', clearAllData);
+  }
+
   await loadInitialBetData();
   await loadMatches();
 });
+
+function toNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function formatPoints(value) {
+  const number = toNumber(value, 0);
+  if (Number.isInteger(number)) return String(number);
+  return number.toFixed(2).replace(/\.00$/, '').replace(/0$/, '');
+}
 
 function normalizeBetData(data) {
   const source = data && typeof data === 'object' ? data : {};
@@ -47,10 +68,8 @@ function normalizeBetData(data) {
     ? source.participants
         .map((p) => ({
           name: String(p.name || '').trim(),
-          correct: Number.isFinite(Number(p.correct)) ? Number(p.correct) : 0,
-          points: Number.isFinite(Number(p.points))
-            ? Number(p.points)
-            : (Number.isFinite(Number(p.correct)) ? Number(p.correct) * POINTS_EXACT_SCORE : 0)
+          correct: toNumber(p.correct, 0),
+          points: toNumber(p.points, 0)
         }))
         .filter((p) => p.name)
     : [];
@@ -59,7 +78,12 @@ function normalizeBetData(data) {
     participants,
     predictions: source.predictions && typeof source.predictions === 'object' ? source.predictions : {},
     results: source.results && typeof source.results === 'object' ? source.results : {},
-    accumulatedPot: 0
+    accumulatedPool: toNumber(source.accumulatedPool ?? source.accumulatedPot, 0),
+    accumulatedPot: toNumber(source.accumulatedPot ?? source.accumulatedPool, 0),
+    settings: {
+      pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
+    }
   };
 }
 
@@ -90,8 +114,53 @@ function readLocalBackup() {
 function saveLocalBackup() {
   const json = JSON.stringify(betData);
   localStorage.setItem('betData_api_cache', json);
-  // Se conserva la llave antigua para facilitar migración desde versiones previas.
   localStorage.setItem('betData', json);
+}
+
+function clearLocalBackup() {
+  localStorage.removeItem('betData_api_cache');
+  localStorage.removeItem('betData');
+}
+
+function getCleanInitialData() {
+  return normalizeBetData({
+    participants: [],
+    predictions: {},
+    results: {},
+    accumulatedPool: 0,
+    accumulatedPot: 0,
+    settings: {
+      pointsPerParticipant: POINTS_PER_PARTICIPANT
+    }
+  });
+}
+
+async function postDataToCloudflare(dataToSave) {
+  if (!API_ENDPOINT) {
+    throw new Error('Falta configurar API_ENDPOINT en config.js.');
+  }
+
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  if (API_TOKEN) {
+    headers.Authorization = `Bearer ${API_TOKEN}`;
+  }
+
+  const response = await fetch(API_ENDPOINT, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(dataToSave),
+    cache: 'no-store'
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(getFriendlyApiError(response.status, message));
+  }
+
+  return response.json().catch(() => ({ ok: true }));
 }
 
 async function loadInitialBetData() {
@@ -130,6 +199,7 @@ async function loadInitialBetData() {
           }
         );
       }
+
       if (hasUsefulData(betData)) {
         saveLocalBackup();
       }
@@ -178,8 +248,31 @@ async function loadMatches() {
     return dateA - dateB;
   });
 
+  recalculateStandings();
   renderParticipants();
   renderMatches();
+}
+
+function getFriendlyApiError(status, responseText) {
+  const text = String(responseText || '').trim();
+
+  if (status === 401 || status === 403) {
+    return 'Cloudflare rechazó el guardado por permisos/token. Revisa si tu Worker exige API_TOKEN.';
+  }
+
+  if (status === 404) {
+    return 'No se encontró la ruta /api/betData en el Worker.';
+  }
+
+  if (status === 405) {
+    return 'El Worker no permite método POST. Debes actualizar el código del Worker.';
+  }
+
+  if (status >= 500) {
+    return `El Worker respondió error ${status}. ${text}`.trim();
+  }
+
+  return `Cloudflare respondió ${status}. ${text}`.trim();
 }
 
 async function persistBetData() {
@@ -188,30 +281,12 @@ async function persistBetData() {
   saveLocalBackup();
 
   if (!API_ENDPOINT) {
-    showSyncStatus('Guardado solo en respaldo local porque no hay API configurada.', 'warning');
-    return true;
-  }
-
-  const headers = {
-    'Content-Type': 'application/json'
-  };
-
-  if (API_TOKEN) {
-    headers.Authorization = `Bearer ${API_TOKEN}`;
+    showSyncStatus('Guardado solo en este navegador: falta configurar API_ENDPOINT en config.js.', 'warning');
+    return false;
   }
 
   try {
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(betData),
-      cache: 'no-store'
-    });
-
-    if (!response.ok) {
-      const message = await response.text().catch(() => '');
-      throw new Error(`La API respondió ${response.status}. ${message}`.trim());
-    }
+    await postDataToCloudflare(betData);
 
     apiAvailable = true;
     showSyncStatus('Datos guardados correctamente en Cloudflare.', 'success');
@@ -219,8 +294,59 @@ async function persistBetData() {
   } catch (error) {
     apiAvailable = false;
     console.error('No se pudo guardar en Cloudflare:', error);
-    showSyncStatus('No se pudo guardar en Cloudflare. Revisa CORS, método POST o token del Worker.', 'error');
-    throw error;
+    showSyncStatus(
+      `Guardado solo en este navegador. No se pudo guardar en Cloudflare: ${error.message}`,
+      'error'
+    );
+    return false;
+  }
+}
+
+async function clearAllData() {
+  const firstConfirm = confirm(
+    '¿Seguro que deseas limpiar todos los datos? Esto eliminará participantes, pronósticos, resultados y acumulado.'
+  );
+
+  if (!firstConfirm) return;
+
+  const secondConfirm = confirm(
+    'Confirmación final: esta acción dejará la quiniela en cero para todos los usuarios.'
+  );
+
+  if (!secondConfirm) return;
+
+  const cleanData = getCleanInitialData();
+  const button = document.getElementById('clear-data-button');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Limpiando...';
+  }
+
+  try {
+    if (API_ENDPOINT) {
+      await postDataToCloudflare(cleanData);
+      apiAvailable = true;
+    }
+
+    betData = cleanData;
+    recalculateStandings();
+    clearLocalBackup();
+    saveLocalBackup();
+    renderParticipants();
+    renderMatches();
+    showSyncStatus('Datos limpiados correctamente. La quiniela quedó en cero.', 'success');
+    alert('Datos limpiados correctamente.');
+  } catch (error) {
+    apiAvailable = false;
+    console.error('No se pudieron limpiar los datos:', error);
+    showSyncStatus(`No se pudieron limpiar los datos en Cloudflare: ${error.message}`, 'error');
+    alert(`No se limpiaron los datos porque Cloudflare respondió con error: ${error.message}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Limpiar todos los datos';
+    }
   }
 }
 
@@ -232,13 +358,13 @@ async function addParticipant(name) {
   }
 
   betData.participants.push({ name, correct: 0, points: 0 });
+  recalculateStandings();
+  renderParticipants();
+  renderMatches();
 
-  try {
-    await persistBetData();
-    renderParticipants();
-    renderMatches();
-  } catch (error) {
-    alert(`No se pudo guardar el participante en Cloudflare. Detalle: ${error.message}`);
+  const cloudSaved = await persistBetData();
+  if (!cloudSaved) {
+    alert('El participante quedó guardado solo en este navegador. Para que aparezca en otros dispositivos, revisa Cloudflare.');
   }
 }
 
@@ -246,8 +372,19 @@ function renderParticipants() {
   const container = document.getElementById('participants-list');
   container.innerHTML = '';
 
+  const summary = document.createElement('div');
+  summary.className = 'pool-summary';
+  summary.innerHTML = `
+    <strong>Regla:</strong> ${POINTS_PER_PARTICIPANT} puntos virtuales por participante en cada partido.<br>
+    <strong>Bolsa base del próximo partido:</strong> ${formatPoints(betData.participants.length * POINTS_PER_PARTICIPANT)} puntos.<br>
+    <strong>Acumulado actual:</strong> ${formatPoints(betData.accumulatedPool || 0)} puntos.
+  `;
+  container.appendChild(summary);
+
   if (!betData.participants.length) {
-    container.textContent = 'No hay participantes registrados.';
+    const empty = document.createElement('p');
+    empty.textContent = 'No hay participantes registrados.';
+    container.appendChild(empty);
     return;
   }
 
@@ -255,7 +392,7 @@ function renderParticipants() {
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
 
-  ['Participante', 'Aciertos', 'Puntos'].forEach((header) => {
+  ['Participante', 'Aciertos', 'Puntos ganados'].forEach((header) => {
     const th = document.createElement('th');
     th.textContent = header;
     trh.appendChild(th);
@@ -278,7 +415,7 @@ function renderParticipants() {
       const correctTd = document.createElement('td');
       correctTd.textContent = p.correct;
       const pointsTd = document.createElement('td');
-      pointsTd.textContent = p.points;
+      pointsTd.textContent = formatPoints(p.points);
       tr.appendChild(nameTd);
       tr.appendChild(correctTd);
       tr.appendChild(pointsTd);
@@ -309,8 +446,21 @@ function renderMatches() {
     datetime.className = 'date-time';
     datetime.textContent = `${match.date}${match.time ? ' ' + match.time : ''}`;
 
-    card.appendChild(teams);
-    card.appendChild(datetime);
+    const pool = document.createElement('div');
+    pool.className = 'match-pool';
+    if (betData.results[idx]) {
+      pool.textContent = `Bolsa: ${formatPoints(betData.results[idx].totalPool || 0)} pts`;
+    } else {
+      const expectedPool = (betData.accumulatedPool || 0) + betData.participants.length * POINTS_PER_PARTICIPANT;
+      pool.textContent = `Bolsa si se cierra ahora: ${formatPoints(expectedPool)} pts`;
+    }
+
+    const left = document.createElement('div');
+    left.appendChild(teams);
+    left.appendChild(datetime);
+
+    card.appendChild(left);
+    card.appendChild(pool);
     card.addEventListener('click', () => openMatchModal(match, idx));
     list.appendChild(card);
   });
@@ -376,22 +526,16 @@ function openMatchModal(match, idx) {
   }
 
   document.getElementById('save-predictions').onclick = async () => {
-    try {
-      collectPredictions(idx, form);
-      await persistBetData();
-      alert('Pronósticos guardados correctamente en Cloudflare.');
-    } catch (error) {
-      alert(`No se pudieron guardar los pronósticos. Detalle: ${error.message}`);
-    }
+    collectPredictions(idx, form);
+    const cloudSaved = await persistBetData();
+    alert(cloudSaved
+      ? 'Pronósticos guardados correctamente en Cloudflare.'
+      : 'Pronósticos guardados solo en este navegador. Revisa Cloudflare para sincronizarlos.');
   };
 
   document.getElementById('save-result').onclick = async () => {
-    try {
-      collectPredictions(idx, form);
-      await saveResult(idx, resTeam1.value, resTeam2.value);
-    } catch (error) {
-      alert(`No se pudo guardar el resultado. Detalle: ${error.message}`);
-    }
+    collectPredictions(idx, form);
+    await saveResult(idx, resTeam1.value, resTeam2.value);
   };
 
   document.getElementById('close-modal').onclick = () => {
@@ -426,18 +570,28 @@ async function saveResult(idx, s1, s2) {
     return;
   }
 
+  const existing = betData.results[idx] || {};
+
   betData.results[idx] = {
+    ...existing,
     score1,
     score2,
-    winners: [],
-    pointsPerWinner: POINTS_EXACT_SCORE
+    // Se congela la bolsa base al momento de cerrar el partido.
+    // Así, si luego agregas más participantes, no cambia la bolsa histórica.
+    participantCount: existing.participantCount || betData.participants.length,
+    pointsPerParticipant: POINTS_PER_PARTICIPANT,
+    basePool: existing.basePool || betData.participants.length * POINTS_PER_PARTICIPANT
   };
 
   recalculateStandings();
-  await persistBetData();
   renderParticipants();
   renderMatches();
   showResultSummary(idx);
+
+  const cloudSaved = await persistBetData();
+  alert(cloudSaved
+    ? 'Resultado guardado correctamente en Cloudflare.'
+    : 'Resultado guardado solo en este navegador. Revisa Cloudflare para sincronizarlo.');
 }
 
 function recalculateStandings() {
@@ -446,25 +600,63 @@ function recalculateStandings() {
     participant.points = 0;
   });
 
-  Object.keys(betData.results || {}).forEach((idx) => {
+  let runningAccumulated = 0;
+
+  const resultKeys = Object.keys(betData.results || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key))
+    .sort((a, b) => a - b);
+
+  resultKeys.forEach((idx) => {
     const result = betData.results[idx];
     if (!result) return;
+
+    const basePool = toNumber(result.basePool, betData.participants.length * POINTS_PER_PARTICIPANT);
+    const previousAccumulated = runningAccumulated;
+    const totalPool = previousAccumulated + basePool;
 
     const winners = [];
     betData.participants.forEach((participant) => {
       const prediction = betData.predictions[idx] ? betData.predictions[idx][participant.name] : null;
       if (prediction && prediction.score1 === result.score1 && prediction.score2 === result.score2) {
         participant.correct += 1;
-        participant.points += POINTS_EXACT_SCORE;
         winners.push(participant.name);
       }
     });
 
+    let pointsPerWinner = 0;
+    if (winners.length > 0) {
+      pointsPerWinner = totalPool / winners.length;
+      betData.participants.forEach((participant) => {
+        if (winners.includes(participant.name)) {
+          participant.points += pointsPerWinner;
+        }
+      });
+      runningAccumulated = 0;
+    } else {
+      runningAccumulated = totalPool;
+    }
+
+    result.participantCount = toNumber(result.participantCount, betData.participants.length);
+    result.pointsPerParticipant = POINTS_PER_PARTICIPANT;
+    result.basePool = basePool;
+    result.previousAccumulated = previousAccumulated;
+    result.totalPool = totalPool;
     result.winners = winners;
-    result.pointsPerWinner = POINTS_EXACT_SCORE;
+    result.pointsPerWinner = pointsPerWinner;
+    result.accumulatedAfter = runningAccumulated;
+
+    // Campos viejos: se eliminan para evitar confusión.
     delete result.pot;
     delete result.share;
   });
+
+  betData.accumulatedPool = runningAccumulated;
+  betData.accumulatedPot = runningAccumulated; // compatibilidad con versiones anteriores
+  betData.settings = {
+    ...(betData.settings || {}),
+    pointsPerParticipant: POINTS_PER_PARTICIPANT
+  };
 }
 
 function showResultSummary(idx) {
@@ -478,18 +670,26 @@ function showResultSummary(idx) {
   p1.textContent = `Marcador final: ${result.score1} - ${result.score2}`;
 
   const p2 = document.createElement('p');
-  p2.textContent = `Puntos por marcador exacto: ${POINTS_EXACT_SCORE}`;
+  p2.textContent = `Bolsa base del partido: ${formatPoints(result.basePool || 0)} puntos (${result.participantCount || betData.participants.length} participantes × ${POINTS_PER_PARTICIPANT}).`;
+
+  const p3 = document.createElement('p');
+  p3.textContent = `Acumulado anterior: ${formatPoints(result.previousAccumulated || 0)} puntos.`;
+
+  const p4 = document.createElement('p');
+  p4.textContent = `Bolsa total del partido: ${formatPoints(result.totalPool || 0)} puntos.`;
 
   summaryDiv.appendChild(p1);
   summaryDiv.appendChild(p2);
-
-  const p3 = document.createElement('p');
-  if (result.winners && result.winners.length > 0) {
-    p3.textContent = `Acertaron (${result.winners.length}): ${result.winners.join(', ')}`;
-  } else {
-    p3.textContent = 'Nadie acertó el marcador exacto.';
-  }
   summaryDiv.appendChild(p3);
+  summaryDiv.appendChild(p4);
+
+  const p5 = document.createElement('p');
+  if (result.winners && result.winners.length > 0) {
+    p5.textContent = `Acertaron (${result.winners.length}): ${result.winners.join(', ')}. Cada uno gana ${formatPoints(result.pointsPerWinner)} puntos.`;
+  } else {
+    p5.textContent = `Nadie acertó el marcador exacto. Se acumulan ${formatPoints(result.accumulatedAfter || 0)} puntos para el siguiente partido.`;
+  }
+  summaryDiv.appendChild(p5);
 
   summaryDiv.classList.remove('hidden');
 }
