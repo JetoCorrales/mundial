@@ -1,0 +1,277 @@
+/* Estilos básicos para el sitio de apuestas */
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f9fafb;
+  color: #333;
+}
+
+header {
+  background-color: #004080;
+  color: #fff;
+  padding: 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+header p {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+/* Distribución de la página principal: barra lateral con participantes a la izquierda y
+   listado de partidos a la derecha. Usamos flexbox para colocar las secciones
+   horizontalmente. */
+main {
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* La sección de participantes funcionará como barra lateral */
+#participants-section {
+  flex: 0 0 280px; /* ancho fijo para la barra lateral */
+}
+
+/* La sección de partidos ocupará el resto del espacio */
+#matches-section {
+  flex: 1;
+}
+
+section {
+  margin-bottom: 2rem;
+}
+
+section h2 {
+  margin-bottom: 0.5rem;
+}
+
+/* Formulario de participantes */
+#add-participant-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+#add-participant-form input[type="text"] {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+#add-participant-form button {
+  padding: 0.5rem 1rem;
+  border: none;
+  background-color: #0070c9;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#add-participant-form button:hover {
+  background-color: #005fa3;
+}
+
+/* Lista de participantes */
+#participants-list {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+#participants-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#participants-list th,
+#participants-list td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+#participants-list th {
+  background-color: #f0f4f8;
+}
+
+/* Lista de partidos */
+#matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.match-card {
+  padding: 0.75rem;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.match-card:hover {
+  background-color: #f0f4f8;
+}
+
+.match-card .teams {
+  font-weight: bold;
+}
+
+.match-card .date-time {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.match-card.past {
+  background-color: #f7f7f7;
+  color: #888;
+  cursor: default;
+  opacity: 0.6;
+  filter: grayscale(100%);
+  pointer-events: none; /* desactivar clics */
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background-color: #fff;
+  padding: 1rem;
+  border-radius: 4px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.close-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+/* Formularios en el modal */
+#predictions-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+#predictions-form label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#predictions-form input[type="number"],
+#result-form-container input[type="number"] {
+  width: 60px;
+  padding: 0.3rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.primary {
+  background-color: #0070c9;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.primary:hover {
+  background-color: #005fa3;
+}
+
+.secondary {
+  background-color: #555;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.secondary:hover {
+  background-color: #333;
+}
+
+#result-summary {
+  margin-top: 1rem;
+  background-color: #f0f4f8;
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+footer {
+  background-color: #004080;
+  color: #fff;
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* ------ Estilos adicionales para la página de resultados (results.html) ------ */
+/* Tarjetas de resultados de partidos */
+.match-result-card {
+  padding: 0.75rem;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+/* Tabla resumen de participantes en results.html */
+#participants-summary table {
+  width: 100%;
+  border-collapse: collapse;
+}
+#participants-summary th,
+#participants-summary td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+#participants-summary th {
+  background-color: #f0f4f8;
+}

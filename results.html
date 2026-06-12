@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resultados de Apuestas – Mundial 2026</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Resultados de Apuestas – Mundial 2026</h1>
+    <p>
+      Resumen de los resultados de las apuestas amistosas para el Mundial 2026.
+      Estos datos provienen de <code>bet_data.json</code> y <code>matches.json</code>.
+    </p>
+  </header>
+  <main>
+    <section id="participants-section">
+      <h2>Tabla de Participantes</h2>
+      <div id="participants-summary">
+        <!-- Se completa dinámicamente -->
+      </div>
+    </section>
+    <section id="matches-section">
+      <h2>Resultados de Partidos</h2>
+      <div id="matches-summary">
+        <!-- Se completa dinámicamente -->
+      </div>
+    </section>
+  </main>
+  <footer>
+    <p>
+      Esta página solo muestra información publicada y no permite registrar nuevas
+      apuestas. Para administrar apuestas, utiliza la página local.
+    </p>
+  </footer>
+  <!-- Script de respaldo para partidos (MATCHES_DATA) en caso de fallo al cargar matches.json -->
+  <script src="matches_data.js"></script>
+  <!-- Script para renderizar los resultados -->
+  <script src="results.js"></script>
+</body>
+</html>
