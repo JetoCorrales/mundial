@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Resultados de Apuestas – Mundial 2026</title>
+  <title>Resultados de Quiniela – Mundial 2026</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <h1>Resultados de Apuestas – Mundial 2026</h1>
+    <h1>Resultados de Quiniela – Mundial 2026</h1>
     <p>
-      Resumen de los resultados de las apuestas amistosas para el Mundial 2026.
-      Estos datos provienen de <code>bet_data.json</code> y <code>matches.json</code>.
+      Resumen de los pronósticos y puntos para el Mundial 2026.
+      Los datos se leen principalmente desde Cloudflare Worker.
     </p>
   </header>
   <main>
@@ -30,12 +30,13 @@
   </main>
   <footer>
     <p>
-      Esta página solo muestra información publicada y no permite registrar nuevas
-      apuestas. Para administrar apuestas, utiliza la página local.
+      Esta página solo muestra información publicada y no permite registrar nuevos
+      pronósticos. Para administrar la quiniela, utiliza la página principal.
     </p>
   </footer>
   <!-- Script de respaldo para partidos (MATCHES_DATA) en caso de fallo al cargar matches.json -->
   <script src="matches_data.js"></script>
+  <script src="config.js"></script>
   <!-- Script para renderizar los resultados -->
   <script src="results.js"></script>
 </body>

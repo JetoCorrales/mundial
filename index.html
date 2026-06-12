@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Apuestas del Mundial 2026</title>
+  <title>Quiniela del Mundial 2026</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <h1>Apuestas del Mundial 2026</h1>
-    <p>Administra tus apuestas entre amigos para los partidos del Mundial 2026. Cada apostador contribuye con 100&nbsp;₡ por partido. Las ganancias se reparten entre quienes aciertan el marcador exacto; si nadie acierta, el pozo se acumula para el siguiente partido.</p>
+    <h1>Quiniela del Mundial 2026</h1>
+    <p>Administra pronósticos entre amigos para los partidos del Mundial 2026. Cada marcador exacto suma puntos y la tabla de posiciones se actualiza automáticamente desde Cloudflare.</p>
   </header>
   <main>
     <section id="participants-section">
@@ -30,17 +30,17 @@
       </div>
     </section>
 
-    <!-- Modal para apuestas y resultados -->
+    <!-- Modal para pronósticos y resultados -->
     <div id="match-modal" class="modal hidden">
       <div class="modal-content">
         <span class="close-button" id="close-modal">&times;</span>
         <h3 id="modal-match-title"></h3>
         <div id="predictions-form-container">
-          <h4>Apuestas de los participantes</h4>
+          <h4>Pronósticos de los participantes</h4>
           <form id="predictions-form">
             <!-- Campos de predicción dinámicos -->
           </form>
-          <button id="save-predictions" class="primary" type="button">Guardar apuestas</button>
+          <button id="save-predictions" class="primary" type="button">Guardar pronósticos</button>
         </div>
         <div id="result-form-container">
           <h4>Resultado real</h4>
@@ -62,12 +62,13 @@
   </main>
 
   <footer>
-    <p>Proyecto de apuestas amistosas del Mundial 2026. Utiliza almacenamiento local para conservar la información de tus apuestas.</p>
+    <p>Proyecto de quiniela amistosa del Mundial 2026. Los datos se guardan en Cloudflare Worker; el navegador solo conserva una copia local de respaldo.</p>
   </footer>
 
   <!-- Cargamos los datos de los partidos de forma estática. Este script define la
        variable global MATCHES_DATA, usada como respaldo si la carga de matches.json falla. -->
   <script src="matches_data.js"></script>
+  <script src="config.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
