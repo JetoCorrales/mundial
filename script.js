@@ -241,17 +241,7 @@ async function postDataToCloudflare(dataToSave) {
     throw new Error(getFriendlyApiError(response.status, message));
   }
 
-  const json = await response.json().catch(() => ({ ok: true }));
-
-  const expectedResetIndex = getPointsResetAfterResultIndex(dataToSave);
-  if (expectedResetIndex >= 0) {
-    const savedResetIndex = getPointsResetAfterResultIndex(json.data || json);
-    if (savedResetIndex !== expectedResetIndex) {
-      throw new Error('Cloudflare guardó los datos, pero no devolvió la marca de reinicio de puntos. Actualiza el Worker publicado con el archivo cloudflare_worker_quiniela_puntos.js.');
-    }
-  }
-
-  return json;
+  return response.json().catch(() => ({ ok: true }));
 }
 
 async function loadInitialBetData() {
@@ -704,6 +694,23 @@ async function saveResult(idx, s1, s2) {
 }
 
 function recalculateStandings() {
+  if (shouldInferPointsReset(betData)) {
+    const resetIndex = getLastClosedMatchIndex(betData);
+    const resetAt = betData.settings.pointsResetAt || new Date().toISOString();
+
+    betData.settings = {
+      ...(betData.settings || {}),
+      pointsResetAfterResultIndex: resetIndex,
+      pointsResetAt: resetAt
+    };
+
+    betData.results[resetIndex] = {
+      ...(betData.results[resetIndex] || {}),
+      pointsResetBoundary: true,
+      pointsResetAt: resetAt
+    };
+  }
+
   betData.participants.forEach((participant) => {
     participant.correct = 0;
     participant.points = 0;

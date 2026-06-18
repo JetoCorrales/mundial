@@ -158,6 +158,8 @@ function inferMissingPointsResetSettingsResults(data) {
 }
 
 function recalculateStandingsResults(data) {
+  inferMissingPointsResetSettingsResults(data);
+
   data.participants.forEach((participant) => {
     participant.correct = 0;
     participant.points = 0;
