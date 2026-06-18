@@ -48,21 +48,25 @@ El archivo `cloudflare_worker_quiniela_puntos.js` contiene el código del Worker
 - Si una o varias personas aciertan, la bolsa acumulada se reparte entre ellas.
 - Al repartirse la bolsa, el acumulado vuelve a 0.
 
-## 4. Botón limpiar datos
+## 4. Botón limpiar puntos
 
 La página principal incluye un botón:
 
 ```txt
-Limpiar todos los datos
+Limpiar puntos ganados
 ```
 
-Ese botón borra:
+Ese botón reinicia solamente:
+
+- Puntos ganados de cada participante
+
+Ese botón conserva:
 
 - Participantes
+- Aciertos
 - Pronósticos
 - Resultados
 - Acumulado
-- Respaldo local del navegador
-- Datos guardados en Cloudflare
+- Partidos
 
-El botón pide doble confirmación antes de limpiar.
+El botón pide doble confirmación antes de limpiar los puntos ganados. El cambio se guarda en Cloudflare y en el respaldo local del navegador.

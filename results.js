@@ -86,8 +86,20 @@ function normalizeBetDataResults(data) {
     results: source.results && typeof source.results === 'object' ? source.results : {},
     accumulatedPool: toNumberResults(source.accumulatedPool ?? source.accumulatedPot, 0),
     accumulatedPot: toNumberResults(source.accumulatedPot ?? source.accumulatedPool, 0),
-    settings: source.settings && typeof source.settings === 'object' ? source.settings : {}
+    settings: {
+      pointsResetAfterResultIndex: null,
+      pointsResetAt: null,
+      ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
+    }
   };
+}
+
+function getPointsResetAfterResultIndexResults(data) {
+  const value = data && data.settings ? data.settings.pointsResetAfterResultIndex : null;
+  if (value === null || value === undefined || value === '') return -1;
+
+  const number = Number(value);
+  return Number.isInteger(number) ? number : -1;
 }
 
 function recalculateStandingsResults(data) {
@@ -97,6 +109,7 @@ function recalculateStandingsResults(data) {
   });
 
   let runningAccumulated = 0;
+  const pointsResetAfterResultIndex = getPointsResetAfterResultIndexResults(data);
 
   const resultKeys = Object.keys(data.results || {})
     .map((key) => Number(key))
@@ -124,7 +137,7 @@ function recalculateStandingsResults(data) {
     if (winners.length > 0) {
       pointsPerWinner = totalPool / winners.length;
       data.participants.forEach((participant) => {
-        if (winners.includes(participant.name)) {
+        if (idx > pointsResetAfterResultIndex && winners.includes(participant.name)) {
           participant.points += pointsPerWinner;
         }
       });

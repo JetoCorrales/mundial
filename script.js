@@ -21,7 +21,9 @@ const DEFAULT_DATA = {
   accumulatedPool: 0,
   accumulatedPot: 0,
   settings: {
-    pointsPerParticipant: POINTS_PER_PARTICIPANT
+    pointsPerParticipant: POINTS_PER_PARTICIPANT,
+    pointsResetAfterResultIndex: null,
+    pointsResetAt: null
   }
 };
 
@@ -43,7 +45,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const clearDataButton = document.getElementById('clear-data-button');
   if (clearDataButton) {
-    clearDataButton.addEventListener('click', clearAllData);
+    clearDataButton.addEventListener('click', clearPlayerPoints);
   }
 
   await loadInitialBetData();
@@ -82,9 +84,27 @@ function normalizeBetData(data) {
     accumulatedPot: toNumber(source.accumulatedPot ?? source.accumulatedPool, 0),
     settings: {
       pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      pointsResetAfterResultIndex: null,
+      pointsResetAt: null,
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
+}
+
+function getPointsResetAfterResultIndex(data = betData) {
+  const value = data && data.settings ? data.settings.pointsResetAfterResultIndex : null;
+  if (value === null || value === undefined || value === '') return -1;
+
+  const number = Number(value);
+  return Number.isInteger(number) ? number : -1;
+}
+
+function getLastClosedMatchIndex(data = betData) {
+  const keys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key));
+
+  return keys.length ? Math.max(...keys) : -1;
 }
 
 function hasUsefulData(data) {
@@ -115,24 +135,6 @@ function saveLocalBackup() {
   const json = JSON.stringify(betData);
   localStorage.setItem('betData_api_cache', json);
   localStorage.setItem('betData', json);
-}
-
-function clearLocalBackup() {
-  localStorage.removeItem('betData_api_cache');
-  localStorage.removeItem('betData');
-}
-
-function getCleanInitialData() {
-  return normalizeBetData({
-    participants: [],
-    predictions: {},
-    results: {},
-    accumulatedPool: 0,
-    accumulatedPot: 0,
-    settings: {
-      pointsPerParticipant: POINTS_PER_PARTICIPANT
-    }
-  });
 }
 
 async function postDataToCloudflare(dataToSave) {
@@ -302,50 +304,52 @@ async function persistBetData() {
   }
 }
 
-async function clearAllData() {
+async function clearPlayerPoints() {
   const firstConfirm = confirm(
-    '¿Seguro que deseas limpiar todos los datos? Esto eliminará participantes, pronósticos, resultados y acumulado.'
+    '¿Seguro que deseas limpiar solo los puntos ganados de cada jugador? Se conservarán participantes, aciertos, pronósticos, resultados y acumulado.'
   );
 
   if (!firstConfirm) return;
 
   const secondConfirm = confirm(
-    'Confirmación final: esta acción dejará la quiniela en cero para todos los usuarios.'
+    'Confirmación final: los puntos ganados quedarán en cero, pero los demás datos no se eliminarán.'
   );
 
   if (!secondConfirm) return;
 
-  const cleanData = getCleanInitialData();
   const button = document.getElementById('clear-data-button');
 
   if (button) {
     button.disabled = true;
-    button.textContent = 'Limpiando...';
+    button.textContent = 'Limpiando puntos...';
   }
 
   try {
-    if (API_ENDPOINT) {
-      await postDataToCloudflare(cleanData);
-      apiAvailable = true;
-    }
+    betData = normalizeBetData(betData);
+    betData.settings = {
+      ...(betData.settings || {}),
+      pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      pointsResetAfterResultIndex: getLastClosedMatchIndex(betData),
+      pointsResetAt: new Date().toISOString()
+    };
 
-    betData = cleanData;
     recalculateStandings();
-    clearLocalBackup();
-    saveLocalBackup();
     renderParticipants();
     renderMatches();
-    showSyncStatus('Datos limpiados correctamente. La quiniela quedó en cero.', 'success');
-    alert('Datos limpiados correctamente.');
+
+    const cloudSaved = await persistBetData();
+    alert(cloudSaved
+      ? 'Puntos ganados reiniciados correctamente en Cloudflare.'
+      : 'Puntos ganados reiniciados solo en este navegador. Revisa Cloudflare para sincronizarlos.');
   } catch (error) {
     apiAvailable = false;
-    console.error('No se pudieron limpiar los datos:', error);
-    showSyncStatus(`No se pudieron limpiar los datos en Cloudflare: ${error.message}`, 'error');
-    alert(`No se limpiaron los datos porque Cloudflare respondió con error: ${error.message}`);
+    console.error('No se pudieron limpiar los puntos ganados:', error);
+    showSyncStatus(`No se pudieron limpiar los puntos ganados: ${error.message}`, 'error');
+    alert(`No se limpiaron los puntos ganados: ${error.message}`);
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = 'Limpiar todos los datos';
+      button.textContent = 'Limpiar puntos ganados';
     }
   }
 }
@@ -429,14 +433,14 @@ function renderParticipants() {
 function renderMatches() {
   const list = document.getElementById('matches-list');
   list.innerHTML = '';
+  let pendingMatches = 0;
 
   matches.forEach((match, idx) => {
+    if (betData.results[idx]) return;
+
+    pendingMatches += 1;
     const card = document.createElement('div');
     card.className = 'match-card';
-
-    if (betData.results[idx]) {
-      card.classList.add('past');
-    }
 
     const teams = document.createElement('div');
     teams.className = 'teams';
@@ -464,6 +468,12 @@ function renderMatches() {
     card.addEventListener('click', () => openMatchModal(match, idx));
     list.appendChild(card);
   });
+
+  if (!pendingMatches) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No hay próximos partidos pendientes.';
+    list.appendChild(empty);
+  }
 }
 
 function openMatchModal(match, idx) {
@@ -601,6 +611,7 @@ function recalculateStandings() {
   });
 
   let runningAccumulated = 0;
+  const pointsResetAfterResultIndex = getPointsResetAfterResultIndex(betData);
 
   const resultKeys = Object.keys(betData.results || {})
     .map((key) => Number(key))
@@ -628,7 +639,7 @@ function recalculateStandings() {
     if (winners.length > 0) {
       pointsPerWinner = totalPool / winners.length;
       betData.participants.forEach((participant) => {
-        if (winners.includes(participant.name)) {
+        if (idx > pointsResetAfterResultIndex && winners.includes(participant.name)) {
           participant.points += pointsPerWinner;
         }
       });
@@ -655,7 +666,13 @@ function recalculateStandings() {
   betData.accumulatedPot = runningAccumulated; // compatibilidad con versiones anteriores
   betData.settings = {
     ...(betData.settings || {}),
-    pointsPerParticipant: POINTS_PER_PARTICIPANT
+    pointsPerParticipant: POINTS_PER_PARTICIPANT,
+    pointsResetAfterResultIndex: betData.settings && betData.settings.pointsResetAfterResultIndex !== undefined
+      ? betData.settings.pointsResetAfterResultIndex
+      : null,
+    pointsResetAt: betData.settings && betData.settings.pointsResetAt !== undefined
+      ? betData.settings.pointsResetAt
+      : null
   };
 }
 
