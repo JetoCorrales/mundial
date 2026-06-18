@@ -93,10 +93,16 @@ function normalizeBetData(data) {
 
 function getPointsResetAfterResultIndex(data = betData) {
   const value = data && data.settings ? data.settings.pointsResetAfterResultIndex : null;
-  if (value === null || value === undefined || value === '') return -1;
+  if (value !== null && value !== undefined && value !== '') {
+    const number = Number(value);
+    if (Number.isInteger(number)) return number;
+  }
 
-  const number = Number(value);
-  return Number.isInteger(number) ? number : -1;
+  const resetKeys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key) && data.results[key] && data.results[key].pointsResetBoundary);
+
+  return resetKeys.length ? Math.max(...resetKeys) : -1;
 }
 
 function getLastClosedMatchIndex(data = betData) {
@@ -105,6 +111,26 @@ function getLastClosedMatchIndex(data = betData) {
     .filter((key) => Number.isInteger(key));
 
   return keys.length ? Math.max(...keys) : -1;
+}
+
+function hasAwardedResult(data) {
+  return Object.values((data && data.results) || {}).some((result) => (
+    result &&
+    Array.isArray(result.winners) &&
+    result.winners.length > 0
+  ));
+}
+
+function shouldInferPointsReset(data) {
+  const participants = Array.isArray(data && data.participants) ? data.participants : [];
+
+  return (
+    getPointsResetAfterResultIndex(data) < 0 &&
+    participants.length > 0 &&
+    participants.every((participant) => toNumber(participant.points, 0) === 0) &&
+    getLastClosedMatchIndex(data) >= 0 &&
+    hasAwardedResult(data)
+  );
 }
 
 function getResetTimestamp(data) {
@@ -135,6 +161,29 @@ function mergeLocalPointsResetSettings(remoteData, localData) {
   }
 
   return remote;
+}
+
+function inferMissingPointsResetSettings(data) {
+  const normalized = normalizeBetData(data);
+
+  if (shouldInferPointsReset(normalized)) {
+    const resetIndex = getLastClosedMatchIndex(normalized);
+    const resetAt = normalized.settings.pointsResetAt || new Date().toISOString();
+
+    normalized.settings = {
+      ...(normalized.settings || {}),
+      pointsResetAfterResultIndex: resetIndex,
+      pointsResetAt: resetAt
+    };
+
+    normalized.results[resetIndex] = {
+      ...(normalized.results[resetIndex] || {}),
+      pointsResetBoundary: true,
+      pointsResetAt: resetAt
+    };
+  }
+
+  return normalized;
 }
 
 function hasUsefulData(data) {
@@ -220,7 +269,9 @@ async function loadInitialBetData() {
         throw new Error(`La API respondió ${response.status}`);
       }
 
-      betData = mergeLocalPointsResetSettings(await response.json(), localBackupBeforeApi);
+      betData = inferMissingPointsResetSettings(
+        mergeLocalPointsResetSettings(await response.json(), localBackupBeforeApi)
+      );
       recalculateStandings();
       apiAvailable = true;
       showSyncStatus('Datos cargados desde Cloudflare.', 'success');
@@ -372,6 +423,14 @@ async function clearPlayerPoints() {
       pointsResetAfterResultIndex: getLastClosedMatchIndex(betData),
       pointsResetAt: new Date().toISOString()
     };
+
+    if (betData.settings.pointsResetAfterResultIndex >= 0) {
+      betData.results[betData.settings.pointsResetAfterResultIndex] = {
+        ...(betData.results[betData.settings.pointsResetAfterResultIndex] || {}),
+        pointsResetBoundary: true,
+        pointsResetAt: betData.settings.pointsResetAt
+      };
+    }
 
     recalculateStandings();
     renderParticipants();

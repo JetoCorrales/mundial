@@ -10,7 +10,7 @@ const POINTS_PER_PARTICIPANT_RESULTS = 100;
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     const [betData, matchesData] = await Promise.all([loadBetData(), loadMatchesData()]);
-    const normalized = normalizeBetDataResults(betData);
+    const normalized = inferMissingPointsResetSettingsResults(normalizeBetDataResults(betData));
     const matches = Array.isArray(matchesData.matches) ? matchesData.matches : matchesData;
 
     recalculateStandingsResults(normalized);
@@ -96,10 +96,65 @@ function normalizeBetDataResults(data) {
 
 function getPointsResetAfterResultIndexResults(data) {
   const value = data && data.settings ? data.settings.pointsResetAfterResultIndex : null;
-  if (value === null || value === undefined || value === '') return -1;
+  if (value !== null && value !== undefined && value !== '') {
+    const number = Number(value);
+    if (Number.isInteger(number)) return number;
+  }
 
-  const number = Number(value);
-  return Number.isInteger(number) ? number : -1;
+  const resetKeys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key) && data.results[key] && data.results[key].pointsResetBoundary);
+
+  return resetKeys.length ? Math.max(...resetKeys) : -1;
+}
+
+function getLastClosedMatchIndexResults(data) {
+  const keys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key));
+
+  return keys.length ? Math.max(...keys) : -1;
+}
+
+function hasAwardedResultResults(data) {
+  return Object.values((data && data.results) || {}).some((result) => (
+    result &&
+    Array.isArray(result.winners) &&
+    result.winners.length > 0
+  ));
+}
+
+function shouldInferPointsResetResults(data) {
+  const participants = Array.isArray(data && data.participants) ? data.participants : [];
+
+  return (
+    getPointsResetAfterResultIndexResults(data) < 0 &&
+    participants.length > 0 &&
+    participants.every((participant) => toNumberResults(participant.points, 0) === 0) &&
+    getLastClosedMatchIndexResults(data) >= 0 &&
+    hasAwardedResultResults(data)
+  );
+}
+
+function inferMissingPointsResetSettingsResults(data) {
+  if (shouldInferPointsResetResults(data)) {
+    const resetIndex = getLastClosedMatchIndexResults(data);
+    const resetAt = data.settings.pointsResetAt || new Date().toISOString();
+
+    data.settings = {
+      ...(data.settings || {}),
+      pointsResetAfterResultIndex: resetIndex,
+      pointsResetAt: resetAt
+    };
+
+    data.results[resetIndex] = {
+      ...(data.results[resetIndex] || {}),
+      pointsResetBoundary: true,
+      pointsResetAt: resetAt
+    };
+  }
+
+  return data;
 }
 
 function recalculateStandingsResults(data) {
