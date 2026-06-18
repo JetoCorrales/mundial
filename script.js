@@ -107,6 +107,36 @@ function getLastClosedMatchIndex(data = betData) {
   return keys.length ? Math.max(...keys) : -1;
 }
 
+function getResetTimestamp(data) {
+  const value = data && data.settings ? data.settings.pointsResetAt : null;
+  const time = value ? Date.parse(value) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mergeLocalPointsResetSettings(remoteData, localData) {
+  const remote = normalizeBetData(remoteData);
+  const local = localData ? normalizeBetData(localData) : null;
+
+  if (!local) return remote;
+
+  const localResetIndex = getPointsResetAfterResultIndex(local);
+  if (localResetIndex < 0) return remote;
+
+  const remoteResetIndex = getPointsResetAfterResultIndex(remote);
+  const localResetTime = getResetTimestamp(local);
+  const remoteResetTime = getResetTimestamp(remote);
+
+  if (remoteResetIndex < 0 || localResetTime > remoteResetTime) {
+    remote.settings = {
+      ...(remote.settings || {}),
+      pointsResetAfterResultIndex: localResetIndex,
+      pointsResetAt: local.settings.pointsResetAt || remote.settings.pointsResetAt || null
+    };
+  }
+
+  return remote;
+}
+
 function hasUsefulData(data) {
   return Boolean(
     data &&
@@ -162,7 +192,17 @@ async function postDataToCloudflare(dataToSave) {
     throw new Error(getFriendlyApiError(response.status, message));
   }
 
-  return response.json().catch(() => ({ ok: true }));
+  const json = await response.json().catch(() => ({ ok: true }));
+
+  const expectedResetIndex = getPointsResetAfterResultIndex(dataToSave);
+  if (expectedResetIndex >= 0) {
+    const savedResetIndex = getPointsResetAfterResultIndex(json.data || json);
+    if (savedResetIndex !== expectedResetIndex) {
+      throw new Error('Cloudflare guardó los datos, pero no devolvió la marca de reinicio de puntos. Actualiza el Worker publicado con el archivo cloudflare_worker_quiniela_puntos.js.');
+    }
+  }
+
+  return json;
 }
 
 async function loadInitialBetData() {
@@ -180,7 +220,7 @@ async function loadInitialBetData() {
         throw new Error(`La API respondió ${response.status}`);
       }
 
-      betData = normalizeBetData(await response.json());
+      betData = mergeLocalPointsResetSettings(await response.json(), localBackupBeforeApi);
       recalculateStandings();
       apiAvailable = true;
       showSyncStatus('Datos cargados desde Cloudflare.', 'success');

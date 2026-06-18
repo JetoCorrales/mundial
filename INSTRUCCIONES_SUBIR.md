@@ -70,3 +70,5 @@ Ese botón conserva:
 - Partidos
 
 El botón pide doble confirmación antes de limpiar los puntos ganados. El cambio se guarda en Cloudflare y en el respaldo local del navegador.
+
+Importante: para que el reinicio de puntos se mantenga al refrescar y en otros dispositivos, el Worker publicado en Cloudflare debe usar la versión actual de `cloudflare_worker_quiniela_puntos.js`, que conserva la marca `settings.pointsResetAfterResultIndex`.

@@ -12,7 +12,9 @@ const DEFAULT_DATA = {
   accumulatedPool: 0,
   accumulatedPot: 0,
   settings: {
-    pointsPerParticipant: POINTS_PER_PARTICIPANT
+    pointsPerParticipant: POINTS_PER_PARTICIPANT,
+    pointsResetAfterResultIndex: null,
+    pointsResetAt: null
   }
 };
 
@@ -73,6 +75,8 @@ function normalizeData(data) {
     accumulatedPot: toNumber(source.accumulatedPot ?? source.accumulatedPool, 0),
     settings: {
       pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      pointsResetAfterResultIndex: null,
+      pointsResetAt: null,
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
