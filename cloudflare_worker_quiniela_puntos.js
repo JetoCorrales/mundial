@@ -14,7 +14,10 @@ const DEFAULT_DATA = {
   settings: {
     pointsPerParticipant: POINTS_PER_PARTICIPANT,
     pointsResetAfterResultIndex: null,
-    pointsResetAt: null
+    pointsResetAt: null,
+    manualPointsAfterResultIndex: null,
+    manualPointsAt: null,
+    manualPointsByParticipant: null
   }
 };
 
@@ -77,6 +80,9 @@ function normalizeData(data) {
       pointsPerParticipant: POINTS_PER_PARTICIPANT,
       pointsResetAfterResultIndex: null,
       pointsResetAt: null,
+      manualPointsAfterResultIndex: null,
+      manualPointsAt: null,
+      manualPointsByParticipant: null,
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };

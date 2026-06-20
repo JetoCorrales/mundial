@@ -89,6 +89,9 @@ function normalizeBetDataResults(data) {
     settings: {
       pointsResetAfterResultIndex: null,
       pointsResetAt: null,
+      manualPointsAfterResultIndex: null,
+      manualPointsAt: null,
+      manualPointsByParticipant: null,
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
@@ -114,6 +117,57 @@ function getLastClosedMatchIndexResults(data) {
     .filter((key) => Number.isInteger(key));
 
   return keys.length ? Math.max(...keys) : -1;
+}
+
+function getManualPointsAfterResultIndexResults(data) {
+  const value = data && data.settings ? data.settings.manualPointsAfterResultIndex : null;
+  if (value !== null && value !== undefined && value !== '') {
+    const number = Number(value);
+    if (Number.isInteger(number)) return number;
+  }
+
+  const manualKeys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key) && data.results[key] && data.results[key].manualPointsBoundary);
+
+  return manualKeys.length ? Math.max(...manualKeys) : -1;
+}
+
+function hasManualPointsBaselineResults(data) {
+  return Boolean(
+    data &&
+    data.settings &&
+    data.settings.manualPointsAt
+  ) || Object.values((data && data.results) || {}).some((result) => result && result.manualPointsBoundary);
+}
+
+function getManualPointsByParticipantResults(data) {
+  const source = data && data.settings ? data.settings.manualPointsByParticipant : null;
+
+  if (source && typeof source === 'object' && !Array.isArray(source)) {
+    return new Map(
+      Object.entries(source)
+        .map(([name, points]) => [name, toNumberResults(points, 0)])
+    );
+  }
+
+  const manualIndex = getManualPointsAfterResultIndexResults(data);
+  const boundaryPoints = data &&
+    data.results &&
+    data.results[manualIndex] &&
+    data.results[manualIndex].manualPointsByParticipant;
+
+  if (boundaryPoints && typeof boundaryPoints === 'object' && !Array.isArray(boundaryPoints)) {
+    return new Map(
+      Object.entries(boundaryPoints)
+        .map(([name, points]) => [name, toNumberResults(points, 0)])
+    );
+  }
+
+  return new Map(
+    (Array.isArray(data && data.participants) ? data.participants : [])
+      .map((participant) => [participant.name, toNumberResults(participant.points, 0)])
+  );
 }
 
 function hasAwardedResultResults(data) {
@@ -160,13 +214,25 @@ function inferMissingPointsResetSettingsResults(data) {
 function recalculateStandingsResults(data) {
   inferMissingPointsResetSettingsResults(data);
 
+  const manualPointsByParticipant = getManualPointsByParticipantResults(data);
+  const pointsResetAfterResultIndex = getPointsResetAfterResultIndexResults(data);
+  const manualPointsAfterResultIndex = getManualPointsAfterResultIndexResults(data);
+  const useManualPointsBaseline = (
+    hasManualPointsBaselineResults(data) &&
+    manualPointsAfterResultIndex >= pointsResetAfterResultIndex
+  );
+  const pointsStartAfterResultIndex = useManualPointsBaseline
+    ? manualPointsAfterResultIndex
+    : pointsResetAfterResultIndex;
+
   data.participants.forEach((participant) => {
     participant.correct = 0;
-    participant.points = 0;
+    participant.points = useManualPointsBaseline
+      ? (manualPointsByParticipant.get(participant.name) || 0)
+      : 0;
   });
 
   let runningAccumulated = 0;
-  const pointsResetAfterResultIndex = getPointsResetAfterResultIndexResults(data);
 
   const resultKeys = Object.keys(data.results || {})
     .map((key) => Number(key))
@@ -194,7 +260,7 @@ function recalculateStandingsResults(data) {
     if (winners.length > 0) {
       pointsPerWinner = totalPool / winners.length;
       data.participants.forEach((participant) => {
-        if (idx > pointsResetAfterResultIndex && winners.includes(participant.name)) {
+        if (idx > pointsStartAfterResultIndex && winners.includes(participant.name)) {
           participant.points += pointsPerWinner;
         }
       });

@@ -50,7 +50,11 @@ El archivo `cloudflare_worker_quiniela_puntos.js` contiene el código del Worker
 
 ## 4. Botón limpiar puntos
 
-La página principal incluye un botón:
+La página principal incluye botones de administración de puntos.
+
+El botón para correcciones manuales permite editar los puntos ganados de cada participante y guardar esos valores en Cloudflare. Esa corrección queda como base hasta el último partido cerrado; los partidos que se cierren después suman puntos sobre esa base.
+
+El botón de limpieza:
 
 ```txt
 Limpiar puntos ganados

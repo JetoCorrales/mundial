@@ -23,7 +23,10 @@ const DEFAULT_DATA = {
   settings: {
     pointsPerParticipant: POINTS_PER_PARTICIPANT,
     pointsResetAfterResultIndex: null,
-    pointsResetAt: null
+    pointsResetAt: null,
+    manualPointsAfterResultIndex: null,
+    manualPointsAt: null,
+    manualPointsByParticipant: null
   }
 };
 
@@ -46,6 +49,21 @@ window.addEventListener('DOMContentLoaded', async () => {
   const clearDataButton = document.getElementById('clear-data-button');
   if (clearDataButton) {
     clearDataButton.addEventListener('click', clearPlayerPoints);
+  }
+
+  const editPointsButton = document.getElementById('edit-points-button');
+  if (editPointsButton) {
+    editPointsButton.addEventListener('click', openManualPointsModal);
+  }
+
+  const closePointsModal = document.getElementById('close-points-modal');
+  if (closePointsModal) {
+    closePointsModal.addEventListener('click', closeManualPointsModal);
+  }
+
+  const saveManualPointsButton = document.getElementById('save-manual-points');
+  if (saveManualPointsButton) {
+    saveManualPointsButton.addEventListener('click', saveManualPoints);
   }
 
   await loadInitialBetData();
@@ -86,6 +104,9 @@ function normalizeBetData(data) {
       pointsPerParticipant: POINTS_PER_PARTICIPANT,
       pointsResetAfterResultIndex: null,
       pointsResetAt: null,
+      manualPointsAfterResultIndex: null,
+      manualPointsAt: null,
+      manualPointsByParticipant: null,
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
@@ -103,6 +124,64 @@ function getPointsResetAfterResultIndex(data = betData) {
     .filter((key) => Number.isInteger(key) && data.results[key] && data.results[key].pointsResetBoundary);
 
   return resetKeys.length ? Math.max(...resetKeys) : -1;
+}
+
+function getManualPointsAfterResultIndex(data = betData) {
+  const value = data && data.settings ? data.settings.manualPointsAfterResultIndex : null;
+  if (value !== null && value !== undefined && value !== '') {
+    const number = Number(value);
+    if (Number.isInteger(number)) return number;
+  }
+
+  const manualKeys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => Number.isInteger(key) && data.results[key] && data.results[key].manualPointsBoundary);
+
+  return manualKeys.length ? Math.max(...manualKeys) : -1;
+}
+
+function hasManualPointsBaseline(data = betData) {
+  return Boolean(
+    data &&
+    data.settings &&
+    data.settings.manualPointsAt
+  ) || Object.values((data && data.results) || {}).some((result) => result && result.manualPointsBoundary);
+}
+
+function getManualPointsByParticipant(data = betData) {
+  const source = data && data.settings ? data.settings.manualPointsByParticipant : null;
+
+  if (source && typeof source === 'object' && !Array.isArray(source)) {
+    return new Map(
+      Object.entries(source)
+        .map(([name, points]) => [name, toNumber(points, 0)])
+    );
+  }
+
+  const manualIndex = getManualPointsAfterResultIndex(data);
+  const boundaryPoints = data &&
+    data.results &&
+    data.results[manualIndex] &&
+    data.results[manualIndex].manualPointsByParticipant;
+
+  if (boundaryPoints && typeof boundaryPoints === 'object' && !Array.isArray(boundaryPoints)) {
+    return new Map(
+      Object.entries(boundaryPoints)
+        .map(([name, points]) => [name, toNumber(points, 0)])
+    );
+  }
+
+  return new Map(
+    (Array.isArray(data && data.participants) ? data.participants : [])
+      .map((participant) => [participant.name, toNumber(participant.points, 0)])
+  );
+}
+
+function pointsMapToObject(pointsMap) {
+  return Array.from(pointsMap.entries()).reduce((acc, [name, points]) => {
+    acc[name] = points;
+    return acc;
+  }, {});
 }
 
 function getLastClosedMatchIndex(data = betData) {
@@ -411,7 +490,10 @@ async function clearPlayerPoints() {
       ...(betData.settings || {}),
       pointsPerParticipant: POINTS_PER_PARTICIPANT,
       pointsResetAfterResultIndex: getLastClosedMatchIndex(betData),
-      pointsResetAt: new Date().toISOString()
+      pointsResetAt: new Date().toISOString(),
+      manualPointsAfterResultIndex: null,
+      manualPointsAt: null,
+      manualPointsByParticipant: null
     };
 
     if (betData.settings.pointsResetAfterResultIndex >= 0) {
@@ -439,6 +521,122 @@ async function clearPlayerPoints() {
     if (button) {
       button.disabled = false;
       button.textContent = 'Limpiar puntos ganados';
+    }
+  }
+}
+
+function openManualPointsModal() {
+  if (!betData.participants.length) {
+    alert('No hay participantes para editar.');
+    return;
+  }
+
+  recalculateStandings();
+
+  const modal = document.getElementById('points-modal');
+  const form = document.getElementById('manual-points-form');
+  if (!modal || !form) return;
+
+  form.innerHTML = '';
+
+  betData.participants
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    .forEach((participant) => {
+      const label = document.createElement('label');
+      label.className = 'manual-points-row';
+
+      const name = document.createElement('span');
+      name.textContent = participant.name;
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '0.01';
+      input.dataset.participant = participant.name;
+      input.value = formatPoints(participant.points || 0);
+
+      label.appendChild(name);
+      label.appendChild(input);
+      form.appendChild(label);
+    });
+
+  modal.classList.remove('hidden');
+}
+
+function closeManualPointsModal() {
+  const modal = document.getElementById('points-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function saveManualPoints() {
+  const form = document.getElementById('manual-points-form');
+  const button = document.getElementById('save-manual-points');
+  if (!form) return;
+
+  const inputs = form.querySelectorAll('input[data-participant]');
+  const pointsByParticipant = new Map();
+
+  for (const input of inputs) {
+    const value = input.value === '' ? 0 : Number(input.value);
+    if (!Number.isFinite(value) || value < 0) {
+      alert('Introduce puntos válidos para todos los participantes.');
+      return;
+    }
+    pointsByParticipant.set(input.dataset.participant, value);
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Guardando...';
+  }
+
+  try {
+    betData = normalizeBetData(betData);
+    betData.participants.forEach((participant) => {
+      if (pointsByParticipant.has(participant.name)) {
+        participant.points = pointsByParticipant.get(participant.name);
+      }
+    });
+
+    const manualIndex = getLastClosedMatchIndex(betData);
+    const manualAt = new Date().toISOString();
+    const manualPointsByParticipant = pointsMapToObject(pointsByParticipant);
+
+    betData.settings = {
+      ...(betData.settings || {}),
+      pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      manualPointsAfterResultIndex: manualIndex,
+      manualPointsAt: manualAt,
+      manualPointsByParticipant
+    };
+
+    if (manualIndex >= 0) {
+      betData.results[manualIndex] = {
+        ...(betData.results[manualIndex] || {}),
+        manualPointsBoundary: true,
+        manualPointsAt: manualAt,
+        manualPointsByParticipant
+      };
+    }
+
+    recalculateStandings();
+    renderParticipants();
+    renderMatches();
+    closeManualPointsModal();
+
+    const cloudSaved = await persistBetData();
+    alert(cloudSaved
+      ? 'Puntos actualizados correctamente en Cloudflare.'
+      : 'Puntos actualizados solo en este navegador. Revisa Cloudflare para sincronizarlos.');
+  } catch (error) {
+    console.error('No se pudieron actualizar los puntos manuales:', error);
+    showSyncStatus(`No se pudieron actualizar los puntos manuales: ${error.message}`, 'error');
+    alert(`No se pudieron actualizar los puntos manuales: ${error.message}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Guardar puntos';
     }
   }
 }
@@ -711,13 +909,25 @@ function recalculateStandings() {
     };
   }
 
+  const manualPointsByParticipant = getManualPointsByParticipant(betData);
+  const pointsResetAfterResultIndex = getPointsResetAfterResultIndex(betData);
+  const manualPointsAfterResultIndex = getManualPointsAfterResultIndex(betData);
+  const useManualPointsBaseline = (
+    hasManualPointsBaseline(betData) &&
+    manualPointsAfterResultIndex >= pointsResetAfterResultIndex
+  );
+  const pointsStartAfterResultIndex = useManualPointsBaseline
+    ? manualPointsAfterResultIndex
+    : pointsResetAfterResultIndex;
+
   betData.participants.forEach((participant) => {
     participant.correct = 0;
-    participant.points = 0;
+    participant.points = useManualPointsBaseline
+      ? (manualPointsByParticipant.get(participant.name) || 0)
+      : 0;
   });
 
   let runningAccumulated = 0;
-  const pointsResetAfterResultIndex = getPointsResetAfterResultIndex(betData);
 
   const resultKeys = Object.keys(betData.results || {})
     .map((key) => Number(key))
@@ -745,7 +955,7 @@ function recalculateStandings() {
     if (winners.length > 0) {
       pointsPerWinner = totalPool / winners.length;
       betData.participants.forEach((participant) => {
-        if (idx > pointsResetAfterResultIndex && winners.includes(participant.name)) {
+        if (idx > pointsStartAfterResultIndex && winners.includes(participant.name)) {
           participant.points += pointsPerWinner;
         }
       });
@@ -778,6 +988,15 @@ function recalculateStandings() {
       : null,
     pointsResetAt: betData.settings && betData.settings.pointsResetAt !== undefined
       ? betData.settings.pointsResetAt
+      : null,
+    manualPointsAfterResultIndex: betData.settings && betData.settings.manualPointsAfterResultIndex !== undefined
+      ? betData.settings.manualPointsAfterResultIndex
+      : null,
+    manualPointsAt: betData.settings && betData.settings.manualPointsAt !== undefined
+      ? betData.settings.manualPointsAt
+      : null,
+    manualPointsByParticipant: betData.settings && betData.settings.manualPointsByParticipant !== undefined
+      ? betData.settings.manualPointsByParticipant
       : null
   };
 }
