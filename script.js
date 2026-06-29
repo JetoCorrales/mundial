@@ -107,6 +107,26 @@ function getPointsPerParticipant(data = betData) {
   const number = Number(value);
   if (Number.isFinite(number) && number > 0) return number;
 
+  const predictionMetaValue = data &&
+    data.predictions &&
+    data.predictions.__settings
+    ? data.predictions.__settings.pointsPerParticipant
+    : null;
+  const predictionMetaNumber = Number(predictionMetaValue);
+  if (Number.isFinite(predictionMetaNumber) && predictionMetaNumber > 0) {
+    return predictionMetaNumber;
+  }
+
+  const resultsMetaValue = data &&
+    data.results &&
+    data.results.__settings
+    ? data.results.__settings.pointsPerParticipant
+    : null;
+  const resultsMetaNumber = Number(resultsMetaValue);
+  if (Number.isFinite(resultsMetaNumber) && resultsMetaNumber > 0) {
+    return resultsMetaNumber;
+  }
+
   const ruleKeys = Object.keys((data && data.results) || {})
     .map((key) => Number(key))
     .filter((key) => (
@@ -122,6 +142,27 @@ function getPointsPerParticipant(data = betData) {
   }
 
   return POINTS_PER_PARTICIPANT;
+}
+
+function syncSettingsMetadata(data = betData) {
+  data.predictions = data.predictions && typeof data.predictions === 'object' ? data.predictions : {};
+  data.results = data.results && typeof data.results === 'object' ? data.results : {};
+  data.settings = data.settings && typeof data.settings === 'object' ? data.settings : {};
+
+  const settingsSnapshot = {
+    ...(data.predictions.__settings && typeof data.predictions.__settings === 'object'
+      ? data.predictions.__settings
+      : {}),
+    ...(data.results.__settings && typeof data.results.__settings === 'object'
+      ? data.results.__settings
+      : {}),
+    ...data.settings,
+    pointsPerParticipant: getPointsPerParticipant(data)
+  };
+
+  data.settings = settingsSnapshot;
+  data.predictions.__settings = { ...settingsSnapshot };
+  data.results.__settings = { ...settingsSnapshot };
 }
 
 function normalizeBetData(data) {
@@ -150,6 +191,16 @@ function normalizeBetData(data) {
       manualPointsAfterResultIndex: null,
       manualPointsAt: null,
       manualPointsByParticipant: null,
+      ...(source.predictions &&
+        source.predictions.__settings &&
+        typeof source.predictions.__settings === 'object'
+        ? source.predictions.__settings
+        : {}),
+      ...(source.results &&
+        source.results.__settings &&
+        typeof source.results.__settings === 'object'
+        ? source.results.__settings
+        : {}),
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
@@ -483,6 +534,7 @@ function getFriendlyApiError(status, responseText) {
 async function persistBetData() {
   betData = normalizeBetData(betData);
   recalculateStandings();
+  syncSettingsMetadata(betData);
   saveLocalBackup();
 
   if (!API_ENDPOINT) {

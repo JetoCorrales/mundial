@@ -93,6 +93,16 @@ function normalizeBetDataResults(data) {
       manualPointsAfterResultIndex: null,
       manualPointsAt: null,
       manualPointsByParticipant: null,
+      ...(source.predictions &&
+        source.predictions.__settings &&
+        typeof source.predictions.__settings === 'object'
+        ? source.predictions.__settings
+        : {}),
+      ...(source.results &&
+        source.results.__settings &&
+        typeof source.results.__settings === 'object'
+        ? source.results.__settings
+        : {}),
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
@@ -102,6 +112,26 @@ function getPointsPerParticipantResults(data) {
   const value = data && data.settings ? data.settings.pointsPerParticipant : null;
   const number = Number(value);
   if (Number.isFinite(number) && number > 0) return number;
+
+  const predictionMetaValue = data &&
+    data.predictions &&
+    data.predictions.__settings
+    ? data.predictions.__settings.pointsPerParticipant
+    : null;
+  const predictionMetaNumber = Number(predictionMetaValue);
+  if (Number.isFinite(predictionMetaNumber) && predictionMetaNumber > 0) {
+    return predictionMetaNumber;
+  }
+
+  const resultsMetaValue = data &&
+    data.results &&
+    data.results.__settings
+    ? data.results.__settings.pointsPerParticipant
+    : null;
+  const resultsMetaNumber = Number(resultsMetaValue);
+  if (Number.isFinite(resultsMetaNumber) && resultsMetaNumber > 0) {
+    return resultsMetaNumber;
+  }
 
   const ruleKeys = Object.keys((data && data.results) || {})
     .map((key) => Number(key))
