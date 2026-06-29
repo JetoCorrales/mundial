@@ -12,7 +12,7 @@
 const APP_CONFIG = window.APP_CONFIG || {};
 const API_ENDPOINT = APP_CONFIG.API_ENDPOINT || '';
 const API_TOKEN = APP_CONFIG.API_TOKEN || '';
-const POINTS_PER_PARTICIPANT = 100;
+const POINTS_PER_PARTICIPANT = 150;
 
 const DEFAULT_DATA = {
   participants: [],
@@ -81,6 +81,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     savePointsRuleButton.addEventListener('click', savePointsRule);
   }
 
+  document.addEventListener('click', (event) => {
+    if (event.target && event.target.id === 'edit-points-rule-button') {
+      openPointsRuleModal();
+    }
+  });
+
   await loadInitialBetData();
   await loadMatches();
 });
@@ -99,7 +105,23 @@ function formatPoints(value) {
 function getPointsPerParticipant(data = betData) {
   const value = data && data.settings ? data.settings.pointsPerParticipant : null;
   const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : POINTS_PER_PARTICIPANT;
+  if (Number.isFinite(number) && number > 0) return number;
+
+  const ruleKeys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => (
+      Number.isInteger(key) &&
+      data.results[key] &&
+      Number.isFinite(Number(data.results[key].pointsPerParticipantOverride)) &&
+      Number(data.results[key].pointsPerParticipantOverride) > 0
+    ));
+
+  if (ruleKeys.length) {
+    const latestRule = data.results[Math.max(...ruleKeys)];
+    return Number(latestRule.pointsPerParticipantOverride);
+  }
+
+  return POINTS_PER_PARTICIPANT;
 }
 
 function normalizeBetData(data) {
@@ -579,10 +601,23 @@ async function savePointsRule() {
 
   try {
     betData = normalizeBetData(betData);
+    const ruleIndex = getLastClosedMatchIndex(betData);
+    const ruleAt = new Date().toISOString();
+
     betData.settings = {
       ...(betData.settings || {}),
-      pointsPerParticipant: value
+      pointsPerParticipant: value,
+      pointsPerParticipantUpdatedAt: ruleAt
     };
+
+    if (ruleIndex >= 0) {
+      betData.results[ruleIndex] = {
+        ...(betData.results[ruleIndex] || {}),
+        pointsRuleBoundary: true,
+        pointsRuleAt: ruleAt,
+        pointsPerParticipantOverride: value
+      };
+    }
 
     recalculateStandings();
     renderParticipants();

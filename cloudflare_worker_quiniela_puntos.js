@@ -3,7 +3,7 @@
 // Endpoint público usado por GitHub Pages: /api/betData
 
 const DATA_KEY = 'betData';
-const POINTS_PER_PARTICIPANT = 100;
+const POINTS_PER_PARTICIPANT = 150;
 
 const DEFAULT_DATA = {
   participants: [],
@@ -13,6 +13,7 @@ const DEFAULT_DATA = {
   accumulatedPot: 0,
   settings: {
     pointsPerParticipant: POINTS_PER_PARTICIPANT,
+    pointsPerParticipantUpdatedAt: null,
     pointsResetAfterResultIndex: null,
     pointsResetAt: null,
     manualPointsAfterResultIndex: null,
@@ -78,6 +79,7 @@ function normalizeData(data) {
     accumulatedPot: toNumber(source.accumulatedPot ?? source.accumulatedPool, 0),
     settings: {
       pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      pointsPerParticipantUpdatedAt: null,
       pointsResetAfterResultIndex: null,
       pointsResetAt: null,
       manualPointsAfterResultIndex: null,

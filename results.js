@@ -5,7 +5,7 @@
 
 const RESULTS_CONFIG = window.APP_CONFIG || {};
 const API_ENDPOINT_RESULTS = RESULTS_CONFIG.API_ENDPOINT || '';
-const POINTS_PER_PARTICIPANT_RESULTS = 100;
+const POINTS_PER_PARTICIPANT_RESULTS = 150;
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -101,7 +101,23 @@ function normalizeBetDataResults(data) {
 function getPointsPerParticipantResults(data) {
   const value = data && data.settings ? data.settings.pointsPerParticipant : null;
   const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? number : POINTS_PER_PARTICIPANT_RESULTS;
+  if (Number.isFinite(number) && number > 0) return number;
+
+  const ruleKeys = Object.keys((data && data.results) || {})
+    .map((key) => Number(key))
+    .filter((key) => (
+      Number.isInteger(key) &&
+      data.results[key] &&
+      Number.isFinite(Number(data.results[key].pointsPerParticipantOverride)) &&
+      Number(data.results[key].pointsPerParticipantOverride) > 0
+    ));
+
+  if (ruleKeys.length) {
+    const latestRule = data.results[Math.max(...ruleKeys)];
+    return Number(latestRule.pointsPerParticipantOverride);
+  }
+
+  return POINTS_PER_PARTICIPANT_RESULTS;
 }
 
 function getPointsResetAfterResultIndexResults(data) {
