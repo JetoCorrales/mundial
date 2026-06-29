@@ -87,6 +87,7 @@ function normalizeBetDataResults(data) {
     accumulatedPool: toNumberResults(source.accumulatedPool ?? source.accumulatedPot, 0),
     accumulatedPot: toNumberResults(source.accumulatedPot ?? source.accumulatedPool, 0),
     settings: {
+      pointsPerParticipant: POINTS_PER_PARTICIPANT_RESULTS,
       pointsResetAfterResultIndex: null,
       pointsResetAt: null,
       manualPointsAfterResultIndex: null,
@@ -95,6 +96,12 @@ function normalizeBetDataResults(data) {
       ...(source.settings && typeof source.settings === 'object' ? source.settings : {})
     }
   };
+}
+
+function getPointsPerParticipantResults(data) {
+  const value = data && data.settings ? data.settings.pointsPerParticipant : null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : POINTS_PER_PARTICIPANT_RESULTS;
 }
 
 function getPointsResetAfterResultIndexResults(data) {
@@ -215,6 +222,7 @@ function recalculateStandingsResults(data) {
   inferMissingPointsResetSettingsResults(data);
 
   const manualPointsByParticipant = getManualPointsByParticipantResults(data);
+  const currentPointsPerParticipant = getPointsPerParticipantResults(data);
   const pointsResetAfterResultIndex = getPointsResetAfterResultIndexResults(data);
   const manualPointsAfterResultIndex = getManualPointsAfterResultIndexResults(data);
   const useManualPointsBaseline = (
@@ -243,7 +251,11 @@ function recalculateStandingsResults(data) {
     const result = data.results[idx];
     if (!result) return;
 
-    const basePool = toNumberResults(result.basePool, data.participants.length * POINTS_PER_PARTICIPANT_RESULTS);
+    const resultPointsPerParticipant = toNumberResults(
+      result.pointsPerParticipant,
+      currentPointsPerParticipant
+    );
+    const basePool = toNumberResults(result.basePool, data.participants.length * resultPointsPerParticipant);
     const previousAccumulated = runningAccumulated;
     const totalPool = previousAccumulated + basePool;
     const winners = [];
@@ -270,7 +282,7 @@ function recalculateStandingsResults(data) {
     }
 
     result.participantCount = toNumberResults(result.participantCount, data.participants.length);
-    result.pointsPerParticipant = POINTS_PER_PARTICIPANT_RESULTS;
+    result.pointsPerParticipant = resultPointsPerParticipant;
     result.basePool = basePool;
     result.previousAccumulated = previousAccumulated;
     result.totalPool = totalPool;
@@ -281,6 +293,10 @@ function recalculateStandingsResults(data) {
 
   data.accumulatedPool = runningAccumulated;
   data.accumulatedPot = runningAccumulated;
+  data.settings = {
+    ...(data.settings || {}),
+    pointsPerParticipant: currentPointsPerParticipant
+  };
 }
 
 function renderParticipantsSummary(participants, data) {
@@ -290,7 +306,7 @@ function renderParticipantsSummary(participants, data) {
   const summary = document.createElement('div');
   summary.className = 'pool-summary';
   summary.innerHTML = `
-    <strong>Regla:</strong> ${POINTS_PER_PARTICIPANT_RESULTS} puntos virtuales por participante en cada partido.<br>
+    <strong>Regla:</strong> ${formatPointsResults(getPointsPerParticipantResults(data))} puntos virtuales por participante en cada partido.<br>
     <strong>Acumulado actual:</strong> ${formatPointsResults(data.accumulatedPool || 0)} puntos.
   `;
   container.appendChild(summary);

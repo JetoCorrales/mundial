@@ -52,6 +52,8 @@ El archivo `cloudflare_worker_quiniela_puntos.js` contiene el código del Worker
 
 La página principal incluye botones de administración de puntos.
 
+El botón de regla de puntos permite cambiar cuántos puntos aporta cada participante por partido. El nuevo valor se guarda en Cloudflare y se usa para calcular la bolsa de los partidos que se cierren después del cambio. Los partidos ya cerrados conservan su bolsa histórica.
+
 El botón para correcciones manuales permite editar los puntos ganados de cada participante y guardar esos valores en Cloudflare. Esa corrección queda como base hasta el último partido cerrado; los partidos que se cierren después suman puntos sobre esa base.
 
 El botón de limpieza:

@@ -13,6 +13,7 @@
   </header>
   <main>
     <section id="admin-section" class="admin-section" aria-label="Administración de puntos">
+      <button id="edit-points-rule-button" class="secondary-button" type="button">Editar regla de puntos</button>
       <button id="edit-points-button" class="secondary-button" type="button">Editar puntos</button>
       <button id="clear-data-button" class="danger-button" type="button">Limpiar puntos ganados</button>
     </section>
@@ -73,6 +74,20 @@
           <!-- Campos dinámicos de puntos -->
         </form>
         <button id="save-manual-points" class="primary" type="button">Guardar puntos</button>
+      </div>
+    </div>
+
+    <div id="points-rule-modal" class="modal hidden">
+      <div class="modal-content">
+        <span class="close-button" id="close-points-rule-modal">&times;</span>
+        <h3>Editar regla de puntos</h3>
+        <form id="points-rule-form" class="manual-points-form">
+          <label class="manual-points-row">
+            <span>Puntos por participante</span>
+            <input type="number" id="points-per-participant-input" min="1" step="1" />
+          </label>
+        </form>
+        <button id="save-points-rule" class="primary" type="button">Guardar regla</button>
       </div>
     </div>
   </main>

@@ -650,8 +650,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-28",
     "time": "12:00 UTC-7",
-    "team1": "2A",
-    "team2": "2B",
+    "team1": "South Africa",
+    "team2": "Canada",
     "round": "Round of 32",
     "group": null,
     "ground": "Los Angeles (Inglewood)"
@@ -659,8 +659,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-29",
     "time": "16:30 UTC-4",
-    "team1": "1E",
-    "team2": "3A/B/C/D/F",
+    "team1": "Germany",
+    "team2": "Paraguay",
     "round": "Round of 32",
     "group": null,
     "ground": "Boston (Foxborough)"
@@ -668,8 +668,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-29",
     "time": "19:00 UTC-6",
-    "team1": "1F",
-    "team2": "2C",
+    "team1": "Netherlands",
+    "team2": "Morocco",
     "round": "Round of 32",
     "group": null,
     "ground": "Monterrey (Guadalupe)"
@@ -677,8 +677,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-29",
     "time": "12:00 UTC-5",
-    "team1": "1C",
-    "team2": "2F",
+    "team1": "Brazil",
+    "team2": "Japan",
     "round": "Round of 32",
     "group": null,
     "ground": "Houston"
@@ -686,8 +686,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-30",
     "time": "17:00 UTC-4",
-    "team1": "1I",
-    "team2": "3C/D/F/G/H",
+    "team1": "France",
+    "team2": "Sweden",
     "round": "Round of 32",
     "group": null,
     "ground": "New York/New Jersey (East Rutherford)"
@@ -695,8 +695,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-30",
     "time": "12:00 UTC-5",
-    "team1": "2E",
-    "team2": "2I",
+    "team1": "Ivory Coast",
+    "team2": "Norway",
     "round": "Round of 32",
     "group": null,
     "ground": "Dallas (Arlington)"
@@ -704,8 +704,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-06-30",
     "time": "19:00 UTC-6",
-    "team1": "1A",
-    "team2": "3C/E/F/H/I",
+    "team1": "Mexico",
+    "team2": "Ecuador",
     "round": "Round of 32",
     "group": null,
     "ground": "Mexico City"
@@ -713,8 +713,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-01",
     "time": "12:00 UTC-4",
-    "team1": "1L",
-    "team2": "3E/H/I/J/K",
+    "team1": "England",
+    "team2": "DR Congo",
     "round": "Round of 32",
     "group": null,
     "ground": "Atlanta"
@@ -722,8 +722,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-01",
     "time": "17:00 UTC-7",
-    "team1": "1D",
-    "team2": "3B/E/F/I/J",
+    "team1": "USA",
+    "team2": "Bosnia & Herzegovina",
     "round": "Round of 32",
     "group": null,
     "ground": "San Francisco Bay Area (Santa Clara)"
@@ -731,8 +731,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-01",
     "time": "13:00 UTC-7",
-    "team1": "1G",
-    "team2": "3A/E/H/I/J",
+    "team1": "Belgium",
+    "team2": "Senegal",
     "round": "Round of 32",
     "group": null,
     "ground": "Seattle"
@@ -740,8 +740,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-02",
     "time": "19:00 UTC-4",
-    "team1": "2K",
-    "team2": "2L",
+    "team1": "Portugal",
+    "team2": "Croatia",
     "round": "Round of 32",
     "group": null,
     "ground": "Toronto"
@@ -749,8 +749,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-02",
     "time": "12:00 UTC-7",
-    "team1": "1H",
-    "team2": "2J",
+    "team1": "Spain",
+    "team2": "Austria",
     "round": "Round of 32",
     "group": null,
     "ground": "Los Angeles (Inglewood)"
@@ -758,8 +758,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-02",
     "time": "20:00 UTC-7",
-    "team1": "1B",
-    "team2": "3E/F/G/I/J",
+    "team1": "Switzerland",
+    "team2": "Algeria",
     "round": "Round of 32",
     "group": null,
     "ground": "Vancouver"
@@ -767,8 +767,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-03",
     "time": "18:00 UTC-4",
-    "team1": "1J",
-    "team2": "2H",
+    "team1": "Argentina",
+    "team2": "Cape Verde",
     "round": "Round of 32",
     "group": null,
     "ground": "Miami (Miami Gardens)"
@@ -776,8 +776,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-03",
     "time": "20:30 UTC-5",
-    "team1": "1K",
-    "team2": "3D/E/I/J/L",
+    "team1": "Colombia",
+    "team2": "Ghana",
     "round": "Round of 32",
     "group": null,
     "ground": "Kansas City"
@@ -785,8 +785,8 @@ window.MATCHES_DATA = [
   {
     "date": "2026-07-03",
     "time": "13:00 UTC-5",
-    "team1": "2D",
-    "team2": "2G",
+    "team1": "Australia",
+    "team2": "Egypt",
     "round": "Round of 32",
     "group": null,
     "ground": "Dallas (Arlington)"

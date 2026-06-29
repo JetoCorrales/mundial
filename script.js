@@ -66,6 +66,21 @@ window.addEventListener('DOMContentLoaded', async () => {
     saveManualPointsButton.addEventListener('click', saveManualPoints);
   }
 
+  const editPointsRuleButton = document.getElementById('edit-points-rule-button');
+  if (editPointsRuleButton) {
+    editPointsRuleButton.addEventListener('click', openPointsRuleModal);
+  }
+
+  const closePointsRuleModalButton = document.getElementById('close-points-rule-modal');
+  if (closePointsRuleModalButton) {
+    closePointsRuleModalButton.addEventListener('click', closePointsRuleModal);
+  }
+
+  const savePointsRuleButton = document.getElementById('save-points-rule');
+  if (savePointsRuleButton) {
+    savePointsRuleButton.addEventListener('click', savePointsRule);
+  }
+
   await loadInitialBetData();
   await loadMatches();
 });
@@ -79,6 +94,12 @@ function formatPoints(value) {
   const number = toNumber(value, 0);
   if (Number.isInteger(number)) return String(number);
   return number.toFixed(2).replace(/\.00$/, '').replace(/0$/, '');
+}
+
+function getPointsPerParticipant(data = betData) {
+  const value = data && data.settings ? data.settings.pointsPerParticipant : null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : POINTS_PER_PARTICIPANT;
 }
 
 function normalizeBetData(data) {
@@ -488,7 +509,7 @@ async function clearPlayerPoints() {
     betData = normalizeBetData(betData);
     betData.settings = {
       ...(betData.settings || {}),
-      pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      pointsPerParticipant: getPointsPerParticipant(betData),
       pointsResetAfterResultIndex: getLastClosedMatchIndex(betData),
       pointsResetAt: new Date().toISOString(),
       manualPointsAfterResultIndex: null,
@@ -521,6 +542,65 @@ async function clearPlayerPoints() {
     if (button) {
       button.disabled = false;
       button.textContent = 'Limpiar puntos ganados';
+    }
+  }
+}
+
+function openPointsRuleModal() {
+  const modal = document.getElementById('points-rule-modal');
+  const input = document.getElementById('points-per-participant-input');
+  if (!modal || !input) return;
+
+  input.value = formatPoints(getPointsPerParticipant(betData));
+  modal.classList.remove('hidden');
+  input.focus();
+}
+
+function closePointsRuleModal() {
+  const modal = document.getElementById('points-rule-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function savePointsRule() {
+  const input = document.getElementById('points-per-participant-input');
+  const button = document.getElementById('save-points-rule');
+  if (!input) return;
+
+  const value = Number(input.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    alert('Introduce un valor mayor a cero para los puntos por participante.');
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Guardando...';
+  }
+
+  try {
+    betData = normalizeBetData(betData);
+    betData.settings = {
+      ...(betData.settings || {}),
+      pointsPerParticipant: value
+    };
+
+    recalculateStandings();
+    renderParticipants();
+    renderMatches();
+    closePointsRuleModal();
+
+    const cloudSaved = await persistBetData();
+    alert(cloudSaved
+      ? 'Regla de puntos actualizada correctamente en Cloudflare.'
+      : 'Regla de puntos actualizada solo en este navegador. Revisa Cloudflare para sincronizarla.');
+  } catch (error) {
+    console.error('No se pudo actualizar la regla de puntos:', error);
+    showSyncStatus(`No se pudo actualizar la regla de puntos: ${error.message}`, 'error');
+    alert(`No se pudo actualizar la regla de puntos: ${error.message}`);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Guardar regla';
     }
   }
 }
@@ -605,7 +685,7 @@ async function saveManualPoints() {
 
     betData.settings = {
       ...(betData.settings || {}),
-      pointsPerParticipant: POINTS_PER_PARTICIPANT,
+      pointsPerParticipant: getPointsPerParticipant(betData),
       manualPointsAfterResultIndex: manualIndex,
       manualPointsAt: manualAt,
       manualPointsByParticipant
@@ -662,12 +742,13 @@ async function addParticipant(name) {
 function renderParticipants() {
   const container = document.getElementById('participants-list');
   container.innerHTML = '';
+  const pointsPerParticipant = getPointsPerParticipant(betData);
 
   const summary = document.createElement('div');
   summary.className = 'pool-summary';
   summary.innerHTML = `
-    <strong>Regla:</strong> ${POINTS_PER_PARTICIPANT} puntos virtuales por participante en cada partido.<br>
-    <strong>Bolsa base del próximo partido:</strong> ${formatPoints(betData.participants.length * POINTS_PER_PARTICIPANT)} puntos.<br>
+    <strong>Regla:</strong> ${formatPoints(pointsPerParticipant)} puntos virtuales por participante en cada partido.<br>
+    <strong>Bolsa base del próximo partido:</strong> ${formatPoints(betData.participants.length * pointsPerParticipant)} puntos.<br>
     <strong>Acumulado actual:</strong> ${formatPoints(betData.accumulatedPool || 0)} puntos.
   `;
   container.appendChild(summary);
@@ -720,6 +801,7 @@ function renderParticipants() {
 function renderMatches() {
   const list = document.getElementById('matches-list');
   list.innerHTML = '';
+  const pointsPerParticipant = getPointsPerParticipant(betData);
   let pendingMatches = 0;
 
   matches.forEach((match, idx) => {
@@ -742,7 +824,7 @@ function renderMatches() {
     if (betData.results[idx]) {
       pool.textContent = `Bolsa: ${formatPoints(betData.results[idx].totalPool || 0)} pts`;
     } else {
-      const expectedPool = (betData.accumulatedPool || 0) + betData.participants.length * POINTS_PER_PARTICIPANT;
+      const expectedPool = (betData.accumulatedPool || 0) + betData.participants.length * pointsPerParticipant;
       pool.textContent = `Bolsa si se cierra ahora: ${formatPoints(expectedPool)} pts`;
     }
 
@@ -861,6 +943,7 @@ function collectPredictions(idx, form) {
 async function saveResult(idx, s1, s2) {
   const score1 = parseInt(s1, 10);
   const score2 = parseInt(s2, 10);
+  const pointsPerParticipant = getPointsPerParticipant(betData);
 
   if (Number.isNaN(score1) || Number.isNaN(score2)) {
     alert('Introduce un marcador válido para ambos equipos.');
@@ -876,8 +959,8 @@ async function saveResult(idx, s1, s2) {
     // Se congela la bolsa base al momento de cerrar el partido.
     // Así, si luego agregas más participantes, no cambia la bolsa histórica.
     participantCount: existing.participantCount || betData.participants.length,
-    pointsPerParticipant: POINTS_PER_PARTICIPANT,
-    basePool: existing.basePool || betData.participants.length * POINTS_PER_PARTICIPANT
+    pointsPerParticipant: existing.pointsPerParticipant || pointsPerParticipant,
+    basePool: existing.basePool || betData.participants.length * pointsPerParticipant
   };
 
   recalculateStandings();
@@ -910,6 +993,7 @@ function recalculateStandings() {
   }
 
   const manualPointsByParticipant = getManualPointsByParticipant(betData);
+  const currentPointsPerParticipant = getPointsPerParticipant(betData);
   const pointsResetAfterResultIndex = getPointsResetAfterResultIndex(betData);
   const manualPointsAfterResultIndex = getManualPointsAfterResultIndex(betData);
   const useManualPointsBaseline = (
@@ -938,7 +1022,11 @@ function recalculateStandings() {
     const result = betData.results[idx];
     if (!result) return;
 
-    const basePool = toNumber(result.basePool, betData.participants.length * POINTS_PER_PARTICIPANT);
+    const resultPointsPerParticipant = toNumber(
+      result.pointsPerParticipant,
+      currentPointsPerParticipant
+    );
+    const basePool = toNumber(result.basePool, betData.participants.length * resultPointsPerParticipant);
     const previousAccumulated = runningAccumulated;
     const totalPool = previousAccumulated + basePool;
 
@@ -965,7 +1053,7 @@ function recalculateStandings() {
     }
 
     result.participantCount = toNumber(result.participantCount, betData.participants.length);
-    result.pointsPerParticipant = POINTS_PER_PARTICIPANT;
+    result.pointsPerParticipant = resultPointsPerParticipant;
     result.basePool = basePool;
     result.previousAccumulated = previousAccumulated;
     result.totalPool = totalPool;
@@ -982,7 +1070,7 @@ function recalculateStandings() {
   betData.accumulatedPot = runningAccumulated; // compatibilidad con versiones anteriores
   betData.settings = {
     ...(betData.settings || {}),
-    pointsPerParticipant: POINTS_PER_PARTICIPANT,
+    pointsPerParticipant: currentPointsPerParticipant,
     pointsResetAfterResultIndex: betData.settings && betData.settings.pointsResetAfterResultIndex !== undefined
       ? betData.settings.pointsResetAfterResultIndex
       : null,
@@ -1007,12 +1095,13 @@ function showResultSummary(idx) {
 
   const result = betData.results[idx];
   if (!result) return;
+  const pointsPerParticipant = toNumber(result.pointsPerParticipant, getPointsPerParticipant(betData));
 
   const p1 = document.createElement('p');
   p1.textContent = `Marcador final: ${result.score1} - ${result.score2}`;
 
   const p2 = document.createElement('p');
-  p2.textContent = `Bolsa base del partido: ${formatPoints(result.basePool || 0)} puntos (${result.participantCount || betData.participants.length} participantes × ${POINTS_PER_PARTICIPANT}).`;
+  p2.textContent = `Bolsa base del partido: ${formatPoints(result.basePool || 0)} puntos (${result.participantCount || betData.participants.length} participantes × ${formatPoints(pointsPerParticipant)}).`;
 
   const p3 = document.createElement('p');
   p3.textContent = `Acumulado anterior: ${formatPoints(result.previousAccumulated || 0)} puntos.`;
